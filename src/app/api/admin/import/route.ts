@@ -3,16 +3,16 @@
 //  POST /api/admin/import  — Excel / CSV bulk word import
 //  GET  /api/admin/import  — List past import batches
 // =====================================================================
-
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession }          from "next-auth/next";
-import { authOptions }               from "@/lib/auth";
-import { importWordsFromBuffer }     from "@/lib/import/wordImporter";
-import { prisma }                    from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
+import { importWordsFromBuffer } from "@/lib/import/wordImporter";
+import { prisma } from "@/lib/prisma";
 
 const ALLOWED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
-const MAX_FILE_SIZE_MB   = 10;
-const MAX_FILE_BYTES     = MAX_FILE_SIZE_MB * 1024 * 1024;
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 // ─────────────────────────────────────────────────────────────────────
 //  Dev bypass helper
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 3. Validate type + size ───────────────────────────────────
-    const filename    = file.name.toLowerCase();
+    const filename = file.name.toLowerCase();
     const hasValidExt = ALLOWED_EXTENSIONS.some((ext) => filename.endsWith(ext));
     if (!hasValidExt) {
       return NextResponse.json(
@@ -107,22 +107,22 @@ export async function POST(req: NextRequest) {
 
     // ── 5. Run import engine ──────────────────────────────────────
     const result = await importWordsFromBuffer({
-      uploadedById:     user.id,
-      filename:         file.name,
+      uploadedById: user.id,
+      filename: file.name,
       buffer,
       upsertDuplicates: formData.get("upsertDuplicates") === "true",
     });
 
     return NextResponse.json({
-      success:       true,
-      batchId:       result.batchId,
-      totalRows:     result.totalRows,
+      success: true,
+      batchId: result.batchId,
+      totalRows: result.totalRows,
       importedCount: result.importedCount,
-      skippedCount:  result.skippedCount,
-      errorCount:    result.errorCount,
-      errors:        result.errors,
-      durationMs:    result.durationMs,
-      message:       `Import complete: ${result.importedCount} words imported, ${result.errorCount} errors.`,
+      skippedCount: result.skippedCount,
+      errorCount: result.errorCount,
+      errors: result.errors,
+      durationMs: result.durationMs,
+      message: `Import complete: ${result.importedCount} words imported, ${result.errorCount} errors.`,
     });
 
   } catch (err) {
@@ -131,9 +131,9 @@ export async function POST(req: NextRequest) {
     console.error("[/api/admin/import POST] Unhandled error:", err);
     return NextResponse.json(
       {
-        error:  "Server error during import",
+        error: "Server error during import",
         detail: message,
-        hint:   message.includes("prisma") || message.includes("database") || message.includes("P1")
+        hint: message.includes("prisma") || message.includes("database") || message.includes("P1")
           ? "Database may not be connected. Run: npx prisma migrate dev && npm run db:seed"
           : undefined,
       },
@@ -154,7 +154,7 @@ export async function GET(req: NextRequest) {
 
     const batches = await prisma.importBatch.findMany({
       orderBy: { createdAt: "desc" },
-      take:    20,
+      take: 20,
       include: { uploadedBy: { select: { username: true, email: true } } },
     });
 
