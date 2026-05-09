@@ -1,18 +1,18 @@
 // src/app/api/admin/words/[wordId]/route.ts
 // PATCH — update word fields
 // DELETE — remove a word
-
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { z }      from "zod";
+import { z } from "zod";
 
 const patchSchema = z.object({
-  word:       z.string().min(1).optional(),
+  word: z.string().min(1).optional(),
   definition: z.string().min(1).optional(),
-  example:    z.string().min(1).optional(),
-  phonetic:   z.string().optional().nullable(),
+  example: z.string().min(1).optional(),
+  phonetic: z.string().optional().nullable(),
   difficulty: z.number().int().min(1).max(5).optional(),
-  type:       z.enum(["noun","verb","adjective","adverb","phrase","other"]).optional(),
+  type: z.enum(["noun", "verb", "adjective", "adverb", "phrase", "other"]).optional(),
 });
 
 export async function PATCH(
@@ -26,7 +26,7 @@ export async function PATCH(
   }
   const word = await prisma.word.update({
     where: { id: params.wordId },
-    data:  parsed.data,
+    data: parsed.data,
     select: { id: true, word: true, type: true, definition: true, example: true, phonetic: true, difficulty: true },
   }).catch(() => null);
 
