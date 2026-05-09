@@ -51,7 +51,7 @@ const COLUMN_ALIASES: Record<string, string> = {
   difficulty: "difficulty", diff: "difficulty",
 };
 
-const TYPE_VARIANT: Record<string, "noun"|"verb"|"adjective"|"adverb"|"phrase"|"other"> = {
+const TYPE_VARIANT: Record<string, "noun" | "verb" | "adjective" | "adverb" | "phrase" | "other"> = {
   noun: "noun", verb: "verb", adjective: "adjective",
   adverb: "adverb", phrase: "phrase", other: "other",
 };
@@ -260,10 +260,10 @@ export default function AdminUploadPage() {
           isDragReject
             ? "bg-rose-500/5 dropzone-border-active"
             : isDragActive
-            ? "bg-primary/10 dropzone-border-active scale-[1.01]"
-            : file
-            ? "bg-emerald-500/5 border border-emerald-500/20"
-            : "dropzone-border bg-card/40"
+              ? "bg-primary/10 dropzone-border-active scale-[1.01]"
+              : file
+                ? "bg-emerald-500/5 border border-emerald-500/20"
+                : "dropzone-border bg-card/40"
         )}
       >
         <input {...getInputProps()} id="file-upload" />
@@ -322,14 +322,14 @@ export default function AdminUploadPage() {
           </p>
           <div className="flex flex-wrap gap-2">
             {[
-              { col: "Word",       aliases: "Vocabulary, Term",             required: true  },
-              { col: "Type",       aliases: "POS, Part of Speech",          required: true  },
-              { col: "Definition", aliases: "Meaning, Description",         required: true  },
-              { col: "Example",    aliases: "Sentence, Usage",              required: true  },
-              { col: "Level",      aliases: "Lvl  (1–6)",                   required: true  },
-              { col: "Unit",       aliases: "Chapter  (1–30)",              required: true  },
-              { col: "Phonetic",   aliases: "IPA, Pronunciation",           required: false },
-              { col: "Difficulty", aliases: "Diff  (1–5)",                  required: false },
+              { col: "Word", aliases: "Vocabulary, Term", required: true },
+              { col: "Type", aliases: "POS, Part of Speech", required: true },
+              { col: "Definition", aliases: "Meaning, Description", required: true },
+              { col: "Example", aliases: "Sentence, Usage", required: true },
+              { col: "Level", aliases: "Lvl  (1–6)", required: true },
+              { col: "Unit", aliases: "Chapter  (1–30)", required: true },
+              { col: "Phonetic", aliases: "IPA, Pronunciation", required: false },
+              { col: "Difficulty", aliases: "Diff  (1–5)", required: false },
             ].map((h) => (
               <div key={h.col}
                 className={cn(
@@ -354,12 +354,12 @@ export default function AdminUploadPage() {
       {/* ── Stats cards (after parse) ── */}
       {rows.length > 0 && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-slide-up">
-          <StatCard label="Total Rows"  value={rows.length}        color="text-foreground" />
-          <StatCard label="Valid"        value={validRows.length}   color="text-emerald-400"
+          <StatCard label="Total Rows" value={rows.length} color="text-foreground" />
+          <StatCard label="Valid" value={validRows.length} color="text-emerald-400"
             sub={`${Math.round((validRows.length / rows.length) * 100)}% ready`} />
-          <StatCard label="Invalid"      value={invalidRows.length} color={invalidRows.length > 0 ? "text-rose-400" : "text-muted-foreground"} />
-          <StatCard label="Unique Types" value={[...new Set(validRows.map(r => r.type))].length}
-            sub={[...new Set(validRows.map(r => r.type))].join(", ")} />
+          <StatCard label="Invalid" value={invalidRows.length} color={invalidRows.length > 0 ? "text-rose-400" : "text-muted-foreground"} />
+          <StatCard label="Unique Types" value={Array.from(new Set(validRows.map(r => r.type))).length}
+            sub={Array.from(new Set(validRows.map(r => r.type))).join(", ")} />
         </div>
       )}
 
@@ -579,9 +579,9 @@ export default function AdminUploadPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <StatCard label="Imported"     value={result.importedCount} color="text-emerald-400" />
-            <StatCard label="Skipped/Errs" value={result.errorCount}    color={result.errorCount > 0 ? "text-amber-400" : "text-muted-foreground"} />
-            <StatCard label="Total Rows"   value={result.totalRows} />
+            <StatCard label="Imported" value={result.importedCount} color="text-emerald-400" />
+            <StatCard label="Skipped/Errs" value={result.errorCount} color={result.errorCount > 0 ? "text-amber-400" : "text-muted-foreground"} />
+            <StatCard label="Total Rows" value={result.totalRows} />
           </div>
 
           {result.errors.length > 0 && (
