@@ -13,8 +13,9 @@ async function resolveMe(req: NextRequest) {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
+  const { userId } = await params;
   const meId = await resolveMe(req);
   if (!meId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -29,7 +30,7 @@ export async function PATCH(
 
   const friendship = await prisma.friendship.updateMany({
     where: {
-      requesterId: params.userId,
+      requesterId: userId,
       addresseeId: meId,
       status: "pending",
     },
@@ -44,16 +45,17 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
+  const { userId } = await params;
   const meId = await resolveMe(req);
   if (!meId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   await prisma.friendship.deleteMany({
     where: {
       OR: [
-        { requesterId: meId,          addresseeId: params.userId },
-        { requesterId: params.userId, addresseeId: meId },
+        { requesterId: meId,          addresseeId: userId },
+        { requesterId: userId, addresseeId: meId },
       ],
     },
   });
