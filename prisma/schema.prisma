@@ -1,0 +1,475 @@
+// =====================================================================
+//  prisma/schema.prisma
+//  4,000 Essential English Words — Full Database Schema
+//  Supports: multi-user progress, bulk import, 1v1 & group duels (2–6)
+// =====================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+//  ENUMS
+// ─────────────────────────────────────────────
+
+enum Role {
+  student
+  admin
+}
+
+/// Grammatical category of a vocabulary word
+enum WordType {
+  noun
+  verb
+  adjective
+  adverb
+  phrase
+  other
+}
+
+/// A user's study progress on a unit
+enum UnitStatus {
+  not_started
+  in_progress
+  completed
+}
+
+/// Lifecycle of a competition room
+enum DuelStatus {
+  waiting   // room open, waiting for players
+  active    // quiz in progress
+  finished  // all questions answered
+  cancelled // host left before start
+}
+
+/// Room format
+enum DuelType {
+  one_v_one // exactly 2 players
+  group     // 3–6 players
+}
+
+enum QuizType {
+  multiple_choice
+  fill_blank
+  matching
+  sentence_build
+}
+
+enum TutorMode {
+  grammar_check
+  story
+  quiz
+  free_chat
+}
+
+enum XpEventType {
+  quiz_complete
+  unit_complete
+  duel_win
+  streak_bonus
+  pronunciation_pass
+}
+
+/// Social friendship lifecycle
+enum FriendshipStatus {
+  pending
+  accepted
+  declined
+  blocked
+}
+
+// ─────────────────────────────────────────────
+//  USERS & AUTH
+// ─────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String?  @map("password_hash")   // null for OAuth-only users
+  avatarUrl    String?  @map("avatar_url")
+  role         Role     @default(student)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // ── Relations ──
+  oauthAccounts         OAuthAccount[]
+  sessions              Session[]
+  unitProgress          UserUnitProgress[]
+  wordMastery           UserWordMastery[]
+  pronunciationAttempts UserPronunciationAttempt[]
+  tutorSessions         UserTutorSession[]
+  quizAttempts          UserQuizAttempt[]
+  hostedDuels           Duel[]              @relation("DuelHost")
+  wonDuels              Duel[]              @relation("DuelWinner")
+  duelParticipations    DuelParticipant[]
+  duelAnswers           DuelAnswer[]
+  leaderboard           LeaderboardSnapshot?
+  xpEvents              XpEvent[]
+  userBadges            UserBadge[]
+  wordsCreated          Word[]              @relation("WordCreator")
+  importBatches         ImportBatch[]
+  sentFriendRequests    Friendship[]        @relation("FriendRequester")
+  receivedFriendRequests Friendship[]       @relation("FriendAddressee")
+
+  @@map("users")
+}
+
+model OAuthAccount {
+  id         String @id @default(uuid())
+  userId     String @map("user_id")
+  provider   String // 'google', 'github', etc.
+  providerId String @map("provider_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@map("oauth_accounts")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ─────────────────────────────────────────────
+//  CONTENT: LEVELS → UNITS → WORDS
+// ─────────────────────────────────────────────
+
+model Level {
+  id          Int    @id @default(autoincrement())
+  number      Int    @unique               // 1–6
+  title       String                       // e.g. "Level 1 — Beginner"
+  description String?
+  colorTheme  String? @map("color_theme") // e.g. "#4f46e5"
+
+  units Unit[]
+
+  @@map("levels")
+}
+
+model Unit {
+  id      Int    @id @default(autoincrement())
+  levelId Int    @map("level_id")
+  number  Int                               // 1–30
+  title   String                            // e.g. "Unit 1 — Family"
+
+  level         Level              @relation(fields: [levelId], references: [id])
+  words         Word[]
+  userProgress  UserUnitProgress[]
+  tutorSessions UserTutorSession[]
+  quizAttempts  UserQuizAttempt[]
+  duels         Duel[]
+
+  @@unique([levelId, number])              // prevents duplicate unit numbers per level
+  @@index([levelId])
+  @@map("units")
+}
+
+model Word {
+  id            String   @id @default(uuid())
+  unitId        Int      @map("unit_id")
+  word          String
+  type          WordType
+  definition    String
+  example       String
+  phonetic      String?                    // IPA string, e.g. /ˈfæmɪli/
+  audioUrl      String?  @map("audio_url")// TTS-generated audio file URL
+  imageUrl      String?  @map("image_url")
+  difficulty    Int      @default(1)       // 1–5 internal scoring
+
+  // ── Import tracking ──
+  importBatchId String?  @map("import_batch_id") // links to ImportBatch.id
+  createdById   String?  @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  unit                  Unit                       @relation(fields: [unitId], references: [id])
+  createdBy             User?                      @relation("WordCreator", fields: [createdById], references: [id])
+  importBatch           ImportBatch?               @relation(fields: [importBatchId], references: [id])
+  wordMastery           UserWordMastery[]
+  pronunciationAttempts UserPronunciationAttempt[]
+  duelAnswers           DuelAnswer[]
+
+  @@unique([unitId, word])               // no duplicate words in the same unit
+  @@index([word])                        // fast word lookups
+  @@index([unitId])                      // fast unit-level queries
+  @@map("words")
+}
+
+/// Tracks each bulk import session for auditability
+model ImportBatch {
+  id            String   @id @default(uuid())
+  filename      String                           // original uploaded filename
+  uploadedById  String   @map("uploaded_by")
+  totalRows     Int      @map("total_rows")
+  importedCount Int      @default(0) @map("imported_count")
+  skippedCount  Int      @default(0) @map("skipped_count")
+  errorCount    Int      @default(0) @map("error_count")
+  errorLog      Json?    @map("error_log")       // array of {row, reason}
+  status        String   @default("processing")  // 'processing' | 'done' | 'failed'
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  uploadedBy User   @relation(fields: [uploadedById], references: [id])
+  words      Word[]
+
+  @@map("import_batches")
+}
+
+// ─────────────────────────────────────────────
+//  USER PROGRESS
+// ─────────────────────────────────────────────
+
+model UserUnitProgress {
+  id          String     @id @default(uuid())
+  userId      String     @map("user_id")
+  unitId      Int        @map("unit_id")
+  status      UnitStatus @default(not_started)
+  score       Int        @default(0)         // best score 0–100
+  startedAt   DateTime?  @map("started_at")
+  completedAt DateTime?  @map("completed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unit Unit @relation(fields: [unitId], references: [id])
+
+  @@unique([userId, unitId])
+  @@index([userId])
+  @@map("user_unit_progress")
+}
+
+/// Per-word mastery with spaced-repetition fields (SM-2 compatible)
+model UserWordMastery {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  wordId       String    @map("word_id")
+  masteryLevel Int       @default(0) @map("mastery_level") // 0=unseen,1=learning,2=familiar,3=mastered
+  timesSeen    Int       @default(0) @map("times_seen")
+  timesCorrect Int       @default(0) @map("times_correct")
+  timesWrong   Int       @default(0) @map("times_wrong")
+  easeFactor   Float     @default(2.5) @map("ease_factor") // SM-2 ease factor
+  interval     Int       @default(0)  // days until next review
+  lastSeenAt   DateTime? @map("last_seen_at")
+  nextReviewAt DateTime? @map("next_review_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word Word @relation(fields: [wordId], references: [id])
+
+  @@unique([userId, wordId])
+  @@index([userId, nextReviewAt]) // efficient due-card queries
+  @@map("user_word_mastery")
+}
+
+model UserPronunciationAttempt {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  wordId      String   @map("word_id")
+  audioUrl    String?  @map("audio_url")   // stored recording
+  transcript  String?                       // Whisper transcript
+  score       Float?                        // 0.0–1.0 similarity score
+  feedback    String?                       // AI-generated feedback
+  attemptedAt DateTime @default(now()) @map("attempted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word Word @relation(fields: [wordId], references: [id])
+
+  @@index([userId, wordId])
+  @@map("user_pronunciation_attempts")
+}
+
+model UserTutorSession {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  unitId     Int?      @map("unit_id")
+  mode       TutorMode
+  inputText  String    @map("input_text")
+  aiResponse String    @map("ai_response") @db.Text
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unit Unit? @relation(fields: [unitId], references: [id])
+
+  @@index([userId])
+  @@map("user_tutor_sessions")
+}
+
+model UserQuizAttempt {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  unitId       Int      @map("unit_id")
+  quizType     QuizType @map("quiz_type")
+  score        Int
+  maxScore     Int      @map("max_score")
+  timeTakenSec Int?     @map("time_taken_sec")
+  attemptedAt  DateTime @default(now()) @map("attempted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unit Unit @relation(fields: [unitId], references: [id])
+
+  @@index([userId])
+  @@map("user_quiz_attempts")
+}
+
+// ─────────────────────────────────────────────
+//  COMPETITION / DUEL SYSTEM
+//  Supports 1v1 (maxParticipants=2) and
+//  group rooms (maxParticipants 3–6)
+// ─────────────────────────────────────────────
+
+model Duel {
+  id              String     @id @default(uuid())
+  roomCode        String     @unique @map("room_code")  // 6-char shareable code
+  hostUserId      String     @map("host_user_id")
+  unitId          Int        @map("unit_id")
+  duelType        DuelType   @default(one_v_one) @map("duel_type")
+  /// 2 for 1v1 · 3–6 for group — enforced in application layer
+  maxParticipants Int        @default(2) @map("max_participants")
+  questionCount   Int        @default(10) @map("question_count")
+  timeLimitSec    Int        @default(30) @map("time_limit_sec")  // per question
+  status          DuelStatus @default(waiting)
+  winnerId        String?    @map("winner_id")   // null for group (use rank in DuelParticipant)
+  startedAt       DateTime?  @map("started_at")
+  finishedAt      DateTime?  @map("finished_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  host         User            @relation("DuelHost", fields: [hostUserId], references: [id])
+  unit         Unit            @relation(fields: [unitId], references: [id])
+  winner       User?           @relation("DuelWinner", fields: [winnerId], references: [id])
+  participants DuelParticipant[]
+  answers      DuelAnswer[]
+
+  @@index([roomCode])
+  @@index([status])
+  @@map("duels")
+}
+
+model DuelParticipant {
+  id       String   @id @default(uuid())
+  duelId   String   @map("duel_id")
+  userId   String   @map("user_id")
+  score    Int      @default(0)
+  isReady  Boolean  @default(false) @map("is_ready")
+  rank     Int?     // final rank: 1st, 2nd, 3rd... (populated when duel finishes)
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  duel Duel @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([duelId, userId])
+  @@index([duelId])
+  @@map("duel_participants")
+}
+
+model DuelAnswer {
+  id          String   @id @default(uuid())
+  duelId      String   @map("duel_id")
+  userId      String   @map("user_id")
+  wordId      String   @map("word_id")
+  answerGiven String   @map("answer_given")
+  isCorrect   Boolean  @map("is_correct")
+  timeTakenMs Int?     @map("time_taken_ms")  // speed affects score in competitive mode
+  answeredAt  DateTime @default(now()) @map("answered_at")
+
+  duel Duel @relation(fields: [duelId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+  word Word @relation(fields: [wordId], references: [id])
+
+  @@index([duelId, userId])
+  @@map("duel_answers")
+}
+
+/// Denormalized snapshot — updated after every duel/quiz, cached in Redis for speed
+model LeaderboardSnapshot {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  totalXp     Int      @default(0) @map("total_xp")
+  duelsWon    Int      @default(0) @map("duels_won")
+  duelsPlayed Int      @default(0) @map("duels_played")
+  winRate     Float    @default(0) @map("win_rate")      // cached duelsWon/duelsPlayed
+  streakDays  Int      @default(0) @map("streak_days")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("leaderboard_snapshots")
+}
+
+// ─────────────────────────────────────────────
+//  GAMIFICATION
+// ─────────────────────────────────────────────
+
+/// Append-only audit trail of all XP earned — never update, only insert
+model XpEvent {
+  id          String      @id @default(uuid())
+  userId      String      @map("user_id")
+  eventType   XpEventType @map("event_type")
+  xpEarned    Int         @map("xp_earned")
+  referenceId String?     @map("reference_id") // UUID of quiz/duel/unit that triggered it
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("xp_events")
+}
+
+model Badge {
+  id             Int     @id @default(autoincrement())
+  name           String  @unique
+  description    String?
+  iconUrl        String? @map("icon_url")
+  /// e.g. 'units_completed', 'streak_days', 'duels_won', 'words_mastered'
+  conditionType  String  @map("condition_type")
+  conditionValue Int     @map("condition_value")
+
+  userBadges UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id       String   @id @default(uuid())
+  userId   String   @map("user_id")
+  badgeId  Int      @map("badge_id")
+  earnedAt DateTime @default(now()) @map("earned_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id])
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+// ─────────────────────────────────────────────
+//  SOCIAL GRAPH
+// ─────────────────────────────────────────────
+
+/// Bidirectional friendship with request/accept lifecycle
+model Friendship {
+  id          String           @id @default(uuid())
+  requesterId String           @map("requester_id")
+  addresseeId String           @map("addressee_id")
+  status      FriendshipStatus @default(pending)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  requester User @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
+  @@map("friendships")
+}

@@ -1,0 +1,14 @@
+{
+  "node": {
+    "d8cc74ccfac01608500e85b8a66ee9fe6ce1ed3a": {
+      "workers": {
+        "app/(student)/study/level/[levelId]/unit/[unitId]/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5CAYAH%5C%5C.gemini%5C%5Cantigravity%5C%5Cscratch%5C%5Ceng-learn-platform%5C%5Csrc%5C%5Capp%5C%5Cactions%5C%5Cstudy.ts%22%2C%5B%22rateWord%22%5D%5D%5D&__client_imported__=true!"
+      },
+      "layer": {
+        "app/(student)/study/level/[levelId]/unit/[unitId]/page": "action-browser"
+      }
+    }
+  },
+  "edge": {},
+  "encryptionKey": "mXX+k7fzDed/xYz06C4EnOP5GX9BPp0m7Apd0jzatm0="
+}

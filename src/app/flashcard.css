@@ -1,0 +1,49 @@
+/* =====================================================================
+   Flashcard 3D flip styles — injected once into globals.css
+   (append to existing file via a separate import or add here)
+   These CSS classes are needed because Tailwind can't do
+   perspective / preserve-3d / backface-visibility cleanly.
+   ===================================================================== */
+
+/* Card flip container */
+.card-scene {
+  perspective: 1200px;
+}
+.card-flip {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.4, 0.2, 0.2, 1);
+  cursor: pointer;
+}
+.card-flip.is-flipped {
+  transform: rotateY(180deg);
+}
+.card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 1.25rem;
+}
+.card-face--back {
+  transform: rotateY(180deg);
+}
+
+/* Shimmer loading skeleton */
+@keyframes shimmer {
+  from { background-position: -400px 0; }
+  to   { background-position:  400px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, hsl(217 33% 17%) 25%, hsl(217 33% 22%) 50%, hsl(217 33% 17%) 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* SRS button ripple */
+.srs-btn {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.srs-btn:active { transform: scale(0.95); }

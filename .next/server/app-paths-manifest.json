@@ -1,0 +1,9 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/compete/page": "app/compete/page.js",
+  "/admin/dashboard/page": "app/admin/dashboard/page.js",
+  "/(student)/leaderboard/page": "app/(student)/leaderboard/page.js",
+  "/admin/upload/page": "app/admin/upload/page.js",
+  "/(student)/dashboard/page": "app/(student)/dashboard/page.js",
+  "/admin/words/page": "app/admin/words/page.js"
+}
