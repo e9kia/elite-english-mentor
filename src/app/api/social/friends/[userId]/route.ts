@@ -2,6 +2,7 @@
 // PATCH — accept or decline a friend request
 // DELETE — remove a friendship
 
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 

@@ -1,6 +1,7 @@
 // src/app/api/auth/register/route.ts
 // POST /api/auth/register — creates a new student account.
 
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma }  from "@/lib/prisma";
 import bcrypt      from "bcryptjs";

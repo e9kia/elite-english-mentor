@@ -1,6 +1,7 @@
 // src/app/api/admin/words/route.ts
 // GET — all words with unit/level context for the admin word manager
 
+export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 

@@ -1,6 +1,7 @@
 // src/app/api/social/search/route.ts
 // GET /api/social/search?q=username — user search for Add Friends
 
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 

@@ -2,6 +2,7 @@
 // GET  — list my friends + pending requests
 // POST — send a friend request
 
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 

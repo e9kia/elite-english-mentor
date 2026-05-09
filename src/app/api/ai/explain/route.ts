@@ -2,6 +2,7 @@
 // Gemini API endpoint — returns word explanations, mnemonics, and deep dives.
 // Model chain: gemini-2.5-flash → gemini-2.0-flash-lite (fallback)
 
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI }        from "@google/generative-ai";
 

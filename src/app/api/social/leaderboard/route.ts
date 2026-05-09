@@ -1,6 +1,7 @@
 // src/app/api/social/leaderboard/route.ts
 // GET — returns global top 50 + friends-only leaderboard
 
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
