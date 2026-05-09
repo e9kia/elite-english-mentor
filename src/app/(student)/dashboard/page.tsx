@@ -1,6 +1,7 @@
 // src/app/(student)/dashboard/page.tsx
 // Server Component — fetches real stats directly from Prisma (no API round-trip)
 
+export const dynamic = 'force-dynamic';
 import { prisma }  from "@/lib/prisma";
 import { cn }      from "@/lib/utils";
 import type { Metadata } from "next";

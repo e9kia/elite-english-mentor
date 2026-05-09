@@ -1,6 +1,7 @@
 // src/app/admin/dashboard/page.tsx
 // Admin Hub — stats, user management, hard words
 
+export const dynamic = 'force-dynamic';
 import { prisma } from "@/lib/prisma";
 import { cn }     from "@/lib/utils";
 import type { Metadata } from "next";

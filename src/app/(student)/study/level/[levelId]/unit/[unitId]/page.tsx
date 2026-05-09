@@ -3,6 +3,7 @@
 //  Server Component — fetches words, renders FlashcardDeck.
 // =====================================================================
 
+export const dynamic = 'force-dynamic';
 import { notFound }    from "next/navigation";
 import { prisma }      from "@/lib/prisma";
 import FlashcardDeck   from "@/components/study/FlashcardDeck";
