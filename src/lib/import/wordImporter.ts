@@ -33,18 +33,18 @@ export interface ImportOptions {
 }
 
 export interface ImportResult {
-  batchId:       string;
-  totalRows:     number;
+  batchId: string;
+  totalRows: number;
   importedCount: number;
-  skippedCount:  number;
-  errorCount:    number;
-  errors:        RowError[];
-  durationMs:    number;
+  skippedCount: number;
+  errorCount: number;
+  errors: RowError[];
+  durationMs: number;
 }
 
 interface RowError {
-  row:    number;
-  word?:  string;
+  row: number;
+  word?: string;
   reason: string;
 }
 
@@ -58,16 +58,16 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
   // ── 1. Create ImportBatch record ─────────────────────────────────
   const batch = await prisma.importBatch.create({
     data: {
-      filename:     opts.filename,
+      filename: opts.filename,
       uploadedById: opts.uploadedById,
-      totalRows:    0, // updated at end
-      status:       "processing",
+      totalRows: 0, // updated at end
+      status: "processing",
     },
   });
 
   const errors: RowError[] = [];
   let importedCount = 0;
-  let skippedCount  = 0;
+  let skippedCount = 0;
 
   try {
     // ── 2. Parse file into raw rows ───────────────────────────────
@@ -83,20 +83,20 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
 
     // ── 4. Validate and group rows into Prisma upsert payloads ────
     const toUpsert: Array<{
-      unitId:       number;
-      word:         string;
-      type:         WordType;
-      definition:   string;
-      example:      string;
-      phonetic:     string | null;
-      difficulty:   number;
+      unitId: number;
+      word: string;
+      type: WordType;
+      definition: string;
+      example: string;
+      phonetic: string | null;
+      difficulty: number;
       importBatchId: string;
-      createdById:  string;
+      createdById: string;
     }> = [];
 
     for (let i = 0; i < rawRows.length; i++) {
       const rowNum = i + 2; // +1 for header, +1 for 1-indexed display
-      const raw    = rawRows[i];
+      const raw = rawRows[i];
 
       // Normalise keys to canonical field names
       const normalised = normaliseRow(raw);
@@ -113,11 +113,11 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
 
       // Resolve unit ID
       const unitKey = `${data.level}-${data.unit}`;
-      const unitId  = unitCache.get(unitKey);
+      const unitId = unitCache.get(unitKey);
       if (!unitId) {
         errors.push({
-          row:    rowNum,
-          word:   data.word,
+          row: rowNum,
+          word: data.word,
           reason: `Level ${data.level} Unit ${data.unit} does not exist in the database. Run db:seed first.`,
         });
         continue;
@@ -125,14 +125,14 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
 
       toUpsert.push({
         unitId,
-        word:          data.word,
-        type:          data.type as WordType,
-        definition:    data.definition,
-        example:       data.example,
-        phonetic:      data.phonetic ?? null,
-        difficulty:    data.difficulty,
+        word: data.word,
+        type: data.type as WordType,
+        definition: data.definition,
+        example: data.example,
+        phonetic: data.phonetic ?? null,
+        difficulty: data.difficulty,
         importBatchId: batch.id,
-        createdById:   opts.uploadedById,
+        createdById: opts.uploadedById,
       });
     }
 
@@ -150,12 +150,12 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
             create: row,
             update: opts.upsertDuplicates
               ? {
-                  type:          row.type,
-                  definition:    row.definition,
-                  example:       row.example,
-                  difficulty:    row.difficulty,
-                  importBatchId: row.importBatchId,
-                }
+                type: row.type,
+                definition: row.definition,
+                example: row.example,
+                difficulty: row.difficulty,
+                importBatchId: row.importBatchId,
+              }
               : {}, // no-op update = skip duplicates silently
           })
         )
@@ -177,26 +177,26 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
         importedCount,
         skippedCount,
         errorCount: errors.length,
-        errorLog:   errors.length > 0 ? errors : undefined,
-        status:     "done",
+        errorLog: errors.length > 0 ? (errors as any) : undefined,
+        status: "done",
       },
     });
 
     return {
-      batchId:       batch.id,
+      batchId: batch.id,
       totalRows,
       importedCount,
       skippedCount,
-      errorCount:    errors.length,
+      errorCount: errors.length,
       errors,
-      durationMs:    Date.now() - start,
+      durationMs: Date.now() - start,
     };
   } catch (err) {
     // Mark batch as failed
     await prisma.importBatch.update({
       where: { id: batch.id },
       data: { status: "failed", errorLog: [{ reason: String(err) }] },
-    }).catch(() => {}); // don't throw if update itself fails
+    }).catch(() => { }); // don't throw if update itself fails
 
     throw err;
   }
@@ -214,9 +214,9 @@ function parseFile(buffer: Buffer, filename: string): Record<string, unknown>[] 
   const ext = filename.split(".").pop()?.toLowerCase();
 
   const workbook = XLSX.read(buffer, {
-    type:      "buffer",
+    type: "buffer",
     cellDates: true,   // parse date cells as JS Date
-    raw:       false,  // format numbers as strings for consistent handling
+    raw: false,  // format numbers as strings for consistent handling
   });
 
   // Always use the first sheet
@@ -229,14 +229,14 @@ function parseFile(buffer: Buffer, filename: string): Record<string, unknown>[] 
     // For CSV, XLSX still works; just returns one sheet
     const csvData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
       defval: "",      // empty cells → empty string (not undefined)
-      raw:    false,
+      raw: false,
     });
     return csvData;
   }
 
   return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
     defval: "",
-    raw:    false,
+    raw: false,
   });
 }
 
