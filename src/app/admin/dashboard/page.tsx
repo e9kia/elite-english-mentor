@@ -68,6 +68,7 @@ function StatCard({ label, value, icon, sub, accent = false }: { label: string; 
 }
 
 import AdminUploadButton from "@/components/AdminUploadButton";
+import MaintenanceSection from "@/components/MaintenanceSection";
 
 export default async function AdminDashboard() {
   const s = await getAdminStats();
@@ -188,6 +189,9 @@ export default async function AdminDashboard() {
           </table>
         </div>
       </div>
+      {/* User management section ... existing code ... */}
+      
+      <MaintenanceSection />
     </div>
   );
 }
