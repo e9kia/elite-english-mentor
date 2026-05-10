@@ -43,7 +43,7 @@ export default async function ProfilePage({ params }: { params: { username: stri
   const user = await prisma.user.findUnique({
     where: { username: params.username },
     select: {
-      id: true, username: true, createdAt: true, role: true,
+      id: true, username: true, avatarUrl: true, createdAt: true, role: true,
       leaderboard: true,
       userBadges: { include: { badge: true }, orderBy: { earnedAt: "asc" } },
       wordMastery: { select: { masteryLevel: true } },
