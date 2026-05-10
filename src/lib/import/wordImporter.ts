@@ -61,8 +61,10 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
 
   // 1. NUCLEAR RESET: Wipe data if requested
   if (opts.wipeData) {
-    console.warn("[IMPORT] NUCLEAR RESET: Wiping all words...");
+    console.warn("[IMPORT] NUCLEAR RESET: Wiping all words, units, and levels...");
     await prisma.word.deleteMany({});
+    await prisma.unit.deleteMany({});
+    await prisma.level.deleteMany({});
   }
 
   // ── 1. Create ImportBatch record ─────────────────────────────────
@@ -154,17 +156,14 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
         continue;
       }
 
-      // AI-First Priority Logic: Use AI if ON, else use CSV definition
-      let finalDefinition = data.definition;
-      if (opts.useAI) {
-        finalDefinition = aiTranslations[data.word] || finalDefinition;
-      }
+      // AI-ONLY Priority Logic: Ignore CSV if useAI is ON
+      const finalDefinition = opts.useAI ? (aiTranslations[data.word] || "AI Translation Pending") : data.definition;
 
       wordsToUpsert.push({
         unitId,
         word: data.word,
         type: data.type as WordType,
-        definition: finalDefinition || "No definition available",
+        definition: finalDefinition,
         example: data.example,
         phonetic: data.phonetic ?? null,
         difficulty: data.difficulty,
