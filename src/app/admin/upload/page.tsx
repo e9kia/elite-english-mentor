@@ -38,7 +38,7 @@ interface ImportResult {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WORD_TYPES = ["noun", "verb", "adjective", "adverb", "phrase", "other"];
+const WORD_TYPES = ["noun", "verb", "adjective", "adverb", "preposition", "pronoun", "conjunction", "phrase", "other"];
 
 const COLUMN_ALIASES: Record<string, string> = {
   word: "word", vocabulary: "word", term: "word",
@@ -51,9 +51,10 @@ const COLUMN_ALIASES: Record<string, string> = {
   difficulty: "difficulty", diff: "difficulty",
 };
 
-const TYPE_VARIANT: Record<string, "noun" | "verb" | "adjective" | "adverb" | "phrase" | "other"> = {
+const TYPE_VARIANT: Record<string, string> = {
   noun: "noun", verb: "verb", adjective: "adjective",
-  adverb: "adverb", phrase: "phrase", other: "other",
+  adverb: "adverb", preposition: "preposition", pronoun: "pronoun",
+  conjunction: "conjunction", phrase: "phrase", other: "other",
 };
 
 // ─── Parse helper ─────────────────────────────────────────────────────────────

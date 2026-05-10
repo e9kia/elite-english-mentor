@@ -20,7 +20,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    const csvText = await file.text();
+    const arrayBuffer = await file.arrayBuffer();
+    const decoder = new TextDecoder("utf-8");
+    const csvText = decoder.decode(arrayBuffer);
+    
     const parsed = Papa.parse(csvText, {
       header: true,
       skipEmptyLines: true,
@@ -64,6 +67,9 @@ export async function POST(req: Request) {
         else if (pos.includes("verb")) type = WordType.verb;
         else if (pos.includes("adjective") || pos === "adj") type = WordType.adjective;
         else if (pos.includes("adverb") || pos === "adv") type = WordType.adverb;
+        else if (pos.includes("preposition") || pos === "prep") type = WordType.preposition;
+        else if (pos.includes("pronoun") || pos === "pron") type = WordType.pronoun;
+        else if (pos.includes("conjunction") || pos === "conj") type = WordType.conjunction;
         else if (pos.includes("phrase")) type = WordType.phrase;
 
         // 1. Get or create Level

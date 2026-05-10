@@ -28,6 +28,9 @@ enum WordType {
   verb
   adjective
   adverb
+  preposition
+  pronoun
+  conjunction
   phrase
   other
 }
