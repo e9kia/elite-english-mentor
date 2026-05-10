@@ -1,4 +1,5 @@
 // src/app/(student)/dashboard/page.tsx
+import React, { Suspense } from "react";
 // Server Component — fetches real stats directly from Prisma (no API round-trip)
 
 export const dynamic = 'force-dynamic';
@@ -377,9 +378,9 @@ export default async function DashboardPage() {
 
         {/* Sidebar Widgets */}
         <div className="space-y-8">
-          <React.Suspense fallback={<div className="h-48 glass rounded-3xl animate-pulse" />}>
+          <Suspense fallback={<div className="h-48 glass rounded-3xl animate-pulse" />}>
             <FriendsWidget userId={userId} />
-          </React.Suspense>
+          </Suspense>
 
           {recentBatch && (
             <div className="glass rounded-3xl border border-primary/20 bg-primary/5 p-6 shadow-lg">
