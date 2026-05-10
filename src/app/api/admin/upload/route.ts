@@ -61,16 +61,17 @@ export async function POST(req: Request) {
           continue;
         }
 
-        // Map POS to enum (Case-Insensitive)
+        // Map POS to enum (Case-Insensitive & Robust)
         let type: WordType = WordType.other;
-        if (pos.includes("noun")) type = WordType.noun;
-        else if (pos.includes("verb")) type = WordType.verb;
-        else if (pos.includes("adjective") || pos === "adj") type = WordType.adjective;
-        else if (pos.includes("adverb") || pos === "adv") type = WordType.adverb;
-        else if (pos.includes("preposition") || pos === "prep") type = WordType.preposition;
-        else if (pos.includes("pronoun") || pos === "pron") type = WordType.pronoun;
-        else if (pos.includes("conjunction") || pos === "conj") type = WordType.conjunction;
-        else if (pos.includes("phrase")) type = WordType.phrase;
+        const p = pos.trim();
+        if (p === "noun" || p.includes("noun")) type = WordType.noun;
+        else if (p === "verb" || p.includes("verb")) type = WordType.verb;
+        else if (p === "adjective" || p.includes("adj")) type = WordType.adjective;
+        else if (p === "adverb" || p.includes("adv")) type = WordType.adverb;
+        else if (p === "preposition" || p === "prep" || p.includes("preposition")) type = WordType.preposition;
+        else if (p === "pronoun" || p === "pron" || p.includes("pronoun")) type = WordType.pronoun;
+        else if (p === "conjunction" || p === "conj" || p.includes("conjunction")) type = WordType.conjunction;
+        else if (p === "phrase") type = WordType.phrase;
 
         // 1. Get or create Level
         const level = await prisma.level.upsert({

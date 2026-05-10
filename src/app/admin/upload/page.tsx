@@ -78,9 +78,9 @@ function parseBuffer(buffer: ArrayBuffer, filename: string): ParsedWord[] {
     if (!norm.definition) errors.push("Missing Definition");
     if (!norm.example) errors.push("Missing Example");
     const lvl = Number(norm.level);
-    if (!norm.level || isNaN(lvl) || lvl < 1 || lvl > 6) errors.push("Level must be 1–6");
+    if (!norm.level || isNaN(lvl) || lvl < 1) errors.push("Level must be a positive number");
     const unt = Number(norm.unit);
-    if (!norm.unit || isNaN(unt) || unt < 1 || unt > 30) errors.push("Unit must be 1–30");
+    if (!norm.unit || isNaN(unt) || unt < 1) errors.push("Unit must be a positive number");
 
     return {
       word: String(norm.word || ""),
