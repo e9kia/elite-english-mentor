@@ -422,7 +422,7 @@ export default function AdminUploadPage() {
 
                       <td className="px-4 py-3">
                         {row.type ? (
-                          <Badge variant={TYPE_VARIANT[row.type] ?? "other"}>
+                          <Badge variant={(TYPE_VARIANT[row.type] ?? "other") as any}>
                             {row.type}
                           </Badge>
                         ) : (
