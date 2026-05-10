@@ -156,7 +156,7 @@ function LevelCard({ level }: { level: Awaited<ReturnType<typeof getDashboardSta
       {/* CTA */}
         {hasWords && (
         <Link
-          href={`/study/level/${level.number}`}
+          href={`/learn/level/${level.number}`}
           className={cn(
             "mt-4 flex items-center gap-1.5 text-xs font-medium transition-colors",
             color.text, "hover:opacity-80"
@@ -425,25 +425,25 @@ import StartLearningButton from "@/components/StartLearningButton";
               title: "Flashcards",
               desc: "Flip through vocabulary cards with spaced repetition",
               icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z",
-              color: "text-indigo-400", bg: "bg-indigo-500/10", href: "/study/flashcards", available: true,
+              color: "text-indigo-400", bg: "bg-indigo-500/10", href: "/learn/flashcards", available: true,
             },
             {
               title: "Quizzes",
               desc: "Multiple choice, fill-in-the-blank, and more",
               icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
-              color: "text-emerald-400", bg: "bg-emerald-500/10", href: "/study/quiz", available: false,
+              color: "text-emerald-400", bg: "bg-emerald-500/10", href: "/learn/quiz", available: false,
             },
             {
               title: "Pronunciation",
               desc: "Speak words aloud and get AI feedback",
               icon: "M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z",
-              color: "text-rose-400", bg: "bg-rose-500/10", href: "/study/pronunciation", available: false,
+              color: "text-rose-400", bg: "bg-rose-500/10", href: "/learn/pronunciation", available: false,
             },
             {
               title: "AI Tutor",
               desc: "Chat with AI to fix grammar and build stories",
               icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
-              color: "text-violet-400", bg: "bg-violet-500/10", href: "/study/tutor", available: false,
+              color: "text-violet-400", bg: "bg-violet-500/10", href: "/learn/tutor", available: false,
             },
           ].map((mode) => (
             <div key={mode.title}

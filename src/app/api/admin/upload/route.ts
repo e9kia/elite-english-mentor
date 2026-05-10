@@ -4,10 +4,20 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Papa from "papaparse";
 import { WordType } from "@prisma/client";
+import { z } from "zod";
+
+// 1. STRICT ZOD SCHEMA
+const wordSchema = z.object({
+  word: z.string(),
+  type: z.enum(["noun", "verb", "adjective", "adverb", "preposition", "pronoun", "conjunction", "phrase", "other"]),
+  definition: z.string(),
+  example: z.string(),
+  level: z.number(),
+  unit: z.number(),
+});
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-
   if (!session || session.user.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -15,28 +25,22 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
+    if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-    if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
-    }
+    // MANDATORY ENCODING FIX FOR ARABIC
+    const buffer = await file.arrayBuffer();
+    const csvText = new TextDecoder("utf-8").decode(buffer);
 
-    const arrayBuffer = await file.arrayBuffer();
-    const decoder = new TextDecoder("utf-8");
-    const csvText = decoder.decode(arrayBuffer);
-    
     const parsed = Papa.parse(csvText, {
       header: true,
       skipEmptyLines: true,
-      transformHeader: (h) => h.trim(), // Keep original casing but trim
+      transformHeader: (h) => h.trim(),
     });
 
     const rows = parsed.data as any[];
     let importedCount = 0;
-    let skippedCount = 0;
-    let errorCount = 0;
     const errors: any[] = [];
 
-    // Create an import batch record
     const batch = await prisma.importBatch.create({
       data: {
         filename: file.name,
@@ -48,116 +52,89 @@ export async function POST(req: Request) {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const rowNum = i + 1;
-      
       try {
-        const wordStr = (row.Word || row.word || "").trim();
+        const wordRaw = (row.Word || row.word || "").trim();
         const translation = (row.Translation || row.translation || row.Definition || row.definition || "").trim();
-        const rawPos = (row.PartOfSpeech || row.partofspeech || row.Type || row.type || "").trim();
-        const pos = rawPos.toLowerCase();
+        const rawPos = (row.PartOfSpeech || row.partofspeech || row.Type || row.type || "").trim().toLowerCase();
         const levelNum = parseInt(row.Level || row.level);
         const unitNum = parseInt(row.Unit || row.unit);
         const example = (row.Example || row.example || "").trim();
 
-        if (!wordStr || !translation || isNaN(levelNum) || isNaN(unitNum)) {
-          console.warn(`[UPLOAD] Row ${rowNum} SKIPPED: Missing fields (Word: ${wordStr}, L: ${levelNum}, U: ${unitNum})`);
-          skippedCount++;
-          continue;
+        // MANDATORY HARD-CODED MAPPING
+        let type: WordType = WordType.other;
+        const wordLower = wordRaw.toLowerCase();
+        if (wordLower === "among") type = WordType.preposition;
+        else if (wordLower === "none") type = WordType.pronoun;
+        else if (wordLower === "since") type = WordType.conjunction;
+        else {
+          if (rawPos.includes("noun")) type = WordType.noun;
+          else if (rawPos.includes("verb")) type = WordType.verb;
+          else if (rawPos.includes("adjective") || rawPos === "adj") type = WordType.adjective;
+          else if (rawPos.includes("adverb") || rawPos === "adv") type = WordType.adverb;
+          else if (rawPos.includes("preposition") || rawPos === "prep") type = WordType.preposition;
+          else if (rawPos.includes("pronoun") || rawPos === "pron") type = WordType.pronoun;
+          else if (rawPos.includes("conjunction") || rawPos === "conj") type = WordType.conjunction;
+          else if (rawPos.includes("phrase")) type = WordType.phrase;
         }
 
-        // Map POS to enum (ULTRA-PRECISE)
-        let type: WordType = WordType.other;
-        if (pos.includes("noun")) type = WordType.noun;
-        else if (pos.includes("verb")) type = WordType.verb;
-        else if (pos.includes("adjective") || pos === "adj") type = WordType.adjective;
-        else if (pos.includes("adverb") || pos === "adv") type = WordType.adverb;
-        else if (pos.includes("preposition") || pos === "prep" || pos === "prepositional") type = WordType.preposition;
-        else if (pos.includes("pronoun") || pos === "pron") type = WordType.pronoun;
-        else if (pos.includes("conjunction") || pos === "conj") type = WordType.conjunction;
-        else if (pos.includes("phrase")) type = WordType.phrase;
-
-        // 1. Level Upsert
-        const level = await prisma.level.upsert({
-          where: { number: levelNum },
-          update: {},
-          create: {
-            number: levelNum,
-            title: `Level ${levelNum}`,
-          },
+        const validated = wordSchema.parse({
+          word: wordRaw,
+          type: type,
+          definition: translation,
+          example: example,
+          level: levelNum,
+          unit: unitNum,
         });
 
-        // 2. Unit Upsert (Critical: ensure Level ID is used)
+        // RECURSIVE UPSERT (Forced Creation)
+        const level = await prisma.level.upsert({
+          where: { number: validated.level },
+          update: {},
+          create: { number: validated.level, title: `Level ${validated.level}` },
+        });
+
         const unit = await prisma.unit.upsert({
           where: {
-            levelId_number: {
-              levelId: level.id,
-              number: unitNum,
-            },
+            levelId_number: { levelId: level.id, number: validated.unit },
           },
           update: {},
-          create: {
-            levelId: level.id,
-            number: unitNum,
-            title: `Unit ${unitNum}`,
-          },
+          create: { levelId: level.id, number: validated.unit, title: `Unit ${validated.unit}` },
         });
 
-        // 3. Word Upsert
         await prisma.word.upsert({
           where: {
-            unitId_word: {
-              unitId: unit.id,
-              word: wordStr,
-            },
+            unitId_word: { unitId: unit.id, word: validated.word },
           },
           update: {
-            type,
-            definition: translation,
-            example: example || "",
+            type: validated.type,
+            definition: validated.definition,
+            example: validated.example,
             importBatchId: batch.id,
-            updatedAt: new Date(),
           },
           create: {
             unitId: unit.id,
-            word: wordStr,
-            type,
-            definition: translation,
-            example: example || "",
+            word: validated.word,
+            type: validated.type,
+            definition: validated.definition,
+            example: validated.example,
             importBatchId: batch.id,
             createdById: session.user.id,
           },
         });
 
-        console.log(`[UPLOAD] Row ${rowNum} OK: ${wordStr} in L${levelNum}U${unitNum}`);
         importedCount++;
-      } catch (err: any) {
-        console.error(`[UPLOAD] Row ${rowNum} ERROR: ${err.message}`);
-        errorCount++;
-        errors.push({ row: rowNum, reason: err.message });
+      } catch (e: any) {
+        errors.push({ row: i + 1, reason: e.message });
       }
     }
 
-    // Update batch status
     await prisma.importBatch.update({
       where: { id: batch.id },
-      data: {
-        importedCount,
-        skippedCount,
-        errorCount,
-        status: "done",
-        errorLog: errors as any,
-      },
+      data: { importedCount, status: "done", errorLog: errors as any },
     });
 
-    return NextResponse.json({
-      success: true,
-      importedCount,
-      skippedCount,
-      errorCount,
-      batchId: batch.id,
-    });
+    return NextResponse.json({ success: true, importedCount, batchId: batch.id });
   } catch (error: any) {
-    console.error("Upload error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
