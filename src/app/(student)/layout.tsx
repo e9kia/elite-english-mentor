@@ -50,7 +50,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
               className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border/50 hover:bg-muted transition-colors hidden sm:block">
               Sign In
             </a>
-            {session?.user?.role === "admin" && (
+            {session?.user?.role === 'admin' && (
               <a href="/admin/dashboard"
                 className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border/50 hover:bg-muted transition-colors hidden sm:block">
                 Admin ↗

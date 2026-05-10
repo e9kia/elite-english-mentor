@@ -121,17 +121,17 @@ export default function LeaderboardPage() {
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
 
       {/* Header */}
-      <div className="mb-4">
-        <a href="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-6 border-b border-border/40 gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight mb-2">Leaderboard</h1>
+          <p className="text-sm font-medium text-muted-foreground">Compete with friends · Earn XP · Climb the ranks</p>
+        </div>
+        <a href="/dashboard" className="group inline-flex items-center gap-2 px-5 py-2.5 bg-card hover:bg-muted border border-border/50 text-sm font-semibold text-foreground rounded-full shadow-sm transition-all self-start md:self-auto">
+          <svg className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          Back to Dashboard
+          Back to Hub
         </a>
-      </div>
-      <div className="text-center space-y-1">
-        <h1 className="text-4xl font-bold gradient-text">Leaderboard</h1>
-        <p className="text-sm text-muted-foreground">Compete with friends · Earn XP · Climb the ranks</p>
       </div>
 
       {/* Search bar */}

@@ -236,7 +236,7 @@ export default async function DashboardPage() {
                   </svg>
                   Start Learning
                 </a>
-              ) : isAdmin ? (
+              ) : session?.user?.role === 'admin' ? (
                 <a href="/admin/upload"
                   className="inline-flex items-center gap-2 bg-primary/20 border border-primary/30 text-primary px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary/30 transition-colors">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
