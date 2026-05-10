@@ -60,7 +60,19 @@ export default async function StudentLayout({ children }: { children: React.Reac
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+      <main className="mx-auto max-w-7xl px-6 py-8 min-h-[calc(100vh-160px)]">{children}</main>
+
+      {/* Global Footer */}
+      <footer className="border-t border-border/40 py-12 bg-card/30 backdrop-blur-md">
+        <div className="mx-auto max-w-7xl px-6 flex flex-col items-center justify-center gap-2">
+          <p className="text-sm font-bold text-foreground">
+            Designed & Developed by <span className="text-primary font-black">Ali Jitam ❤️</span>
+          </p>
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.4em]">
+            | © 2026 Elite English Mentor |
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

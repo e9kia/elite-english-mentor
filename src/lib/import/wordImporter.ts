@@ -1,40 +1,19 @@
-// =====================================================================
-//  src/lib/import/wordImporter.ts
-//  Core import engine shared by both the API route and the CLI script.
-//
-//  Supports: .xlsx, .xls, .csv
-//  Strategy:
-//    1. Parse file → raw rows
-//    2. Normalise column headers via alias map
-//    3. Validate each row with Zod (collect errors, don't abort)
-//    4. Resolve Level/Unit IDs from DB (cached in memory per import)
-//    5. Upsert words in a Prisma transaction (batched for performance)
-//    6. Update ImportBatch record with final counts
-// =====================================================================
-
-import * as XLSX from "xlsx";
-import { prisma } from "../prisma";
-import { wordRowSchema, COLUMN_ALIASES, WordRow } from "./validators";
-import type { WordType } from "@prisma/client";
-
-// ─────────────────────────────────────────────
-//  Public types
-// ─────────────────────────────────────────────
+import { prisma } from "@/lib/prisma";
+import { WordType, Level, Unit } from "@prisma/client";
+import * as xlsx from "xlsx";
+import Papa from "papaparse";
+import { z } from "zod";
+import { wordRowSchema, WordRow } from "./validators";
+import { translateToArabic, batchTranslateToArabic } from "../gemini";
 
 export interface ImportOptions {
-  /** ID of the admin user doing the import */
   uploadedById: string;
-  /** Original filename (for audit log) */
   filename: string;
-  /** File content as a Buffer (works for both xlsx and csv) */
   buffer: Buffer;
-  /** If true, duplicate words in the same unit are updated (not skipped) */
   upsertDuplicates?: boolean;
-  wipeData?: boolean; // Nuclear Reset
-  useAI?: boolean;   // AI Auto-translate
+  wipeData?: boolean;
+  useAI?: boolean;
 }
-
-import { translateToArabic, batchTranslateToArabic } from "../gemini";
 
 export interface ImportResult {
   batchId: string;
@@ -42,19 +21,9 @@ export interface ImportResult {
   importedCount: number;
   skippedCount: number;
   errorCount: number;
-  errors: RowError[];
+  errors: any[];
   durationMs: number;
 }
-
-interface RowError {
-  row: number;
-  word?: string;
-  reason: string;
-}
-
-// ─────────────────────────────────────────────
-//  Main import function
-// ─────────────────────────────────────────────
 
 export async function importWordsFromBuffer(opts: ImportOptions): Promise<ImportResult> {
   const start = Date.now();
@@ -67,35 +36,40 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
     await prisma.level.deleteMany({});
   }
 
-  // ── 1. Create ImportBatch record ─────────────────────────────────
   const batch = await prisma.importBatch.create({
     data: {
       filename: opts.filename,
       uploadedById: opts.uploadedById,
-      totalRows: 0, // updated at end
+      totalRows: 0,
       status: "processing",
     },
   });
 
-  const errors: RowError[] = [];
+  const errors: any[] = [];
   let importedCount = 0;
-  let skippedCount = 0;
 
   try {
-    // ── 2. Parse file into raw rows ───────────────────────────────
-    const rawRows = parseFile(opts.buffer, opts.filename);
-    const totalRows = rawRows.length;
-
-    if (totalRows === 0) {
-      throw new Error("File contains no data rows. Check that row 1 is the header.");
+    // 2. FORCE UTF-8 DECODING (Arabic Fix)
+    const decoder = new TextDecoder("utf-8");
+    const csvContent = decoder.decode(opts.buffer);
+    
+    let rawRows: any[] = [];
+    if (opts.filename.endsWith(".csv")) {
+      const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
+      rawRows = parsed.data;
+    } else {
+      // For XLSX, we use the buffer directly but xlsx handles internal encoding
+      const workbook = xlsx.read(opts.buffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      rawRows = xlsx.utils.sheet_to_json(sheet);
     }
 
-    // 2. PRE-PROCESS ENTITIES: Ensure all Levels and Units exist
-    // This avoids race conditions in batch inserts
-    const entityMap = new Map<string, number>(); // "level-unit" -> unitId
-    
-    // Extract unique levels and units from rows
+    if (rawRows.length === 0) throw new Error("File contains no data.");
+
+    // 3. PRE-PROCESS ENTITIES: Ensure all Levels and Units exist
+    const entityMap = new Map<string, number>(); 
     const uniqueUnits = new Set<string>();
+    
     rawRows.forEach((row: any) => {
       const normalised = normaliseRow(row);
       const lvl = parseInt(String(normalised.level));
@@ -118,10 +92,9 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
       entityMap.set(key, unit.id);
     }
 
-    // 3. AI TRANSLATION: Collect words for AI-First model
+    // 4. AI-FIRST: Fetch translations if useAI is ON
     const wordsToTranslate: string[] = [];
     if (opts.useAI) {
-      // AI-First: Collect ALL words to ensure high-quality uniform translations
       rawRows.forEach((row: any) => {
         const normalised = normaliseRow(row);
         const word = String(normalised.word || "").trim();
@@ -131,7 +104,7 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
 
     const aiTranslations = opts.useAI ? await batchTranslateToArabic(wordsToTranslate) : {};
 
-    // 4. PREPARE BATCH UPSERT
+    // 5. PREPARE BATCH
     const wordsToUpsert = [];
     for (let i = 0; i < rawRows.length; i++) {
       const rowNum = i + 2; 
@@ -156,8 +129,8 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
         continue;
       }
 
-      // AI-ONLY Priority Logic: Ignore CSV if useAI is ON
-      const finalDefinition = opts.useAI ? (aiTranslations[data.word] || "AI Translation Pending") : data.definition;
+      // AI-FIRST Logic: If useAI is ON, ignore CSV definition
+      const finalDefinition = opts.useAI ? (aiTranslations[data.word] || "AI Processing...") : data.definition;
 
       wordsToUpsert.push({
         unitId,
@@ -172,144 +145,67 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
       });
     }
 
-    // ── 5. Batch upsert in chunks (atomic hits for speed) ─
-    const CHUNK_SIZE = 50; 
+    // 6. BATCH TRANSACTION
+    const CHUNK_SIZE = 50;
     for (let i = 0; i < wordsToUpsert.length; i += CHUNK_SIZE) {
       const chunk = wordsToUpsert.slice(i, i + CHUNK_SIZE);
-
       await prisma.$transaction(
         chunk.map((row) =>
           prisma.word.upsert({
-            where: {
-              unitId_word: { unitId: row.unitId, word: row.word },
-            },
+            where: { unitId_word: { unitId: row.unitId, word: row.word } },
             create: row,
-            update: opts.upsertDuplicates
-              ? {
-                type: row.type,
-                definition: row.definition,
-                example: row.example,
-                difficulty: row.difficulty,
-                importBatchId: row.importBatchId,
-              }
-              : {}, 
+            update: opts.upsertDuplicates ? {
+              type: row.type,
+              definition: row.definition,
+              example: row.example,
+              difficulty: row.difficulty,
+            } : {},
           })
         )
       );
-
       importedCount += chunk.length;
     }
 
-    // Words that failed validation are counted as errors
-    skippedCount = errors.length;
-
-    // ── 6. Finalise ImportBatch ───────────────────────────────────
     await prisma.importBatch.update({
       where: { id: batch.id },
-      data: {
-        totalRows,
-        importedCount,
-        skippedCount,
-        errorCount: errors.length,
-        errorLog: errors.length > 0 ? (errors as any) : undefined,
-        status: "done",
-      },
+      data: { status: "completed", totalRows: rawRows.length, importedCount },
     });
 
-    return {
-      batchId: batch.id,
-      totalRows,
-      importedCount,
-      skippedCount,
-      errorCount: errors.length,
-      errors,
-      durationMs: Date.now() - start,
-    };
-  } catch (err) {
-    // Mark batch as failed
+  } catch (err: any) {
+    console.error("[IMPORT ERROR]", err);
     await prisma.importBatch.update({
       where: { id: batch.id },
-      data: { status: "failed", errorLog: [{ reason: String(err) }] },
-    }).catch(() => { }); // don't throw if update itself fails
-
+      data: { status: "failed", error: err.message },
+    });
     throw err;
   }
+
+  return {
+    batchId: batch.id,
+    totalRows: importedCount,
+    importedCount,
+    skippedCount: 0,
+    errorCount: errors.length,
+    errors,
+    durationMs: Date.now() - start,
+  };
 }
 
-// ─────────────────────────────────────────────
-//  Helpers
-// ─────────────────────────────────────────────
+function normaliseRow(row: any) {
+  const keys = Object.keys(row);
+  const find = (options: string[]) => {
+    const key = keys.find((k) => options.includes(k.toLowerCase().trim()));
+    return key ? row[key] : undefined;
+  };
 
-/**
- * Parses .xlsx / .xls / .csv files into an array of plain objects.
- * The first row is treated as the header.
- */
-function parseFile(buffer: Buffer, filename: string): Record<string, unknown>[] {
-  const ext = filename.split(".").pop()?.toLowerCase();
-
-  const workbook = XLSX.read(buffer, {
-    type: "buffer",
-    cellDates: true,   // parse date cells as JS Date
-    raw: false,  // format numbers as strings for consistent handling
-  });
-
-  // Always use the first sheet
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) throw new Error("Excel file has no sheets.");
-
-  const sheet = workbook.Sheets[sheetName];
-
-  if (ext === "csv") {
-    // MANDATORY FIX FOR ARABIC SYMBOLS: Use TextDecoder
-    const csvText = new TextDecoder("utf-8").decode(buffer);
-    const workbookFromCsv = XLSX.read(csvText, { type: "string" });
-    const sheet = workbookFromCsv.Sheets[workbookFromCsv.SheetNames[0]];
-    return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: "",
-      raw: false,
-    });
-  }
-
-  return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-    defval: "",
-    raw: false,
-  });
-}
-
-/**
- * Normalises raw spreadsheet column keys to canonical field names
- * using COLUMN_ALIASES. Handles extra whitespace and mixed case.
- */
-function normaliseRow(raw: Record<string, unknown>): Record<string, unknown> {
-  const normalised: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(raw)) {
-    const cleanKey = key.trim().toLowerCase();
-    const canonical = COLUMN_ALIASES[cleanKey];
-    if (canonical) {
-      normalised[canonical] = value;
-    }
-    // Unknown columns are silently ignored
-  }
-
-  return normalised;
-}
-
-/**
- * Fetches all units from the DB once and builds a Map:
- *   "levelNumber-unitNumber" → unitId
- *
- * This avoids N+1 queries during import.
- */
-async function buildUnitCache(): Promise<Map<string, number>> {
-  const units = await prisma.unit.findMany({
-    include: { level: { select: { number: true } } },
-  });
-
-  const cache = new Map<string, number>();
-  for (const unit of units) {
-    const key = `${unit.level.number}-${unit.number}`;
-    cache.set(key, unit.id);
-  }
-  return cache;
+  return {
+    word: find(["word", "english", "term"]),
+    type: find(["type", "pos", "partofspeech"]),
+    definition: find(["definition", "translation", "arabic", "meaning"]),
+    example: find(["example", "sentence", "usage"]),
+    level: find(["level", "levelnumber"]),
+    unit: find(["unit", "unitnumber"]),
+    difficulty: parseInt(String(find(["difficulty", "diff"]) || "1")),
+    phonetic: find(["phonetic", "ipa"]),
+  };
 }
