@@ -46,34 +46,37 @@ export async function POST(req: Request) {
       },
     });
 
-    for (const row of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 1;
+      
       try {
-        // Robust mapping: check multiple variants or just the specific ones
         const wordStr = (row.Word || row.word || "").trim();
         const translation = (row.Translation || row.translation || row.Definition || row.definition || "").trim();
-        const pos = (row.PartOfSpeech || row.partofspeech || row.Type || row.type || "").trim().toLowerCase();
+        const rawPos = (row.PartOfSpeech || row.partofspeech || row.Type || row.type || "").trim();
+        const pos = rawPos.toLowerCase();
         const levelNum = parseInt(row.Level || row.level);
         const unitNum = parseInt(row.Unit || row.unit);
         const example = (row.Example || row.example || "").trim();
 
         if (!wordStr || !translation || isNaN(levelNum) || isNaN(unitNum)) {
+          console.warn(`[UPLOAD] Row ${rowNum} SKIPPED: Missing fields (Word: ${wordStr}, L: ${levelNum}, U: ${unitNum})`);
           skippedCount++;
           continue;
         }
 
-        // Map POS to enum (Case-Insensitive & Robust)
+        // Map POS to enum (ULTRA-PRECISE)
         let type: WordType = WordType.other;
-        const p = pos.trim();
-        if (p === "noun" || p.includes("noun")) type = WordType.noun;
-        else if (p === "verb" || p.includes("verb")) type = WordType.verb;
-        else if (p === "adjective" || p.includes("adj")) type = WordType.adjective;
-        else if (p === "adverb" || p.includes("adv")) type = WordType.adverb;
-        else if (p === "preposition" || p === "prep" || p.includes("preposition")) type = WordType.preposition;
-        else if (p === "pronoun" || p === "pron" || p.includes("pronoun")) type = WordType.pronoun;
-        else if (p === "conjunction" || p === "conj" || p.includes("conjunction")) type = WordType.conjunction;
-        else if (p === "phrase") type = WordType.phrase;
+        if (pos.includes("noun")) type = WordType.noun;
+        else if (pos.includes("verb")) type = WordType.verb;
+        else if (pos.includes("adjective") || pos === "adj") type = WordType.adjective;
+        else if (pos.includes("adverb") || pos === "adv") type = WordType.adverb;
+        else if (pos.includes("preposition") || pos === "prep" || pos === "prepositional") type = WordType.preposition;
+        else if (pos.includes("pronoun") || pos === "pron") type = WordType.pronoun;
+        else if (pos.includes("conjunction") || pos === "conj") type = WordType.conjunction;
+        else if (pos.includes("phrase")) type = WordType.phrase;
 
-        // 1. Get or create Level
+        // 1. Level Upsert
         const level = await prisma.level.upsert({
           where: { number: levelNum },
           update: {},
@@ -83,7 +86,7 @@ export async function POST(req: Request) {
           },
         });
 
-        // 2. Get or create Unit
+        // 2. Unit Upsert (Critical: ensure Level ID is used)
         const unit = await prisma.unit.upsert({
           where: {
             levelId_number: {
@@ -99,7 +102,7 @@ export async function POST(req: Request) {
           },
         });
 
-        // 3. Upsert Word
+        // 3. Word Upsert
         await prisma.word.upsert({
           where: {
             unitId_word: {
@@ -112,6 +115,7 @@ export async function POST(req: Request) {
             definition: translation,
             example: example || "",
             importBatchId: batch.id,
+            updatedAt: new Date(),
           },
           create: {
             unitId: unit.id,
@@ -124,10 +128,12 @@ export async function POST(req: Request) {
           },
         });
 
+        console.log(`[UPLOAD] Row ${rowNum} OK: ${wordStr} in L${levelNum}U${unitNum}`);
         importedCount++;
       } catch (err: any) {
+        console.error(`[UPLOAD] Row ${rowNum} ERROR: ${err.message}`);
         errorCount++;
-        errors.push({ row, reason: err.message });
+        errors.push({ row: rowNum, reason: err.message });
       }
     }
 

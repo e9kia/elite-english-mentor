@@ -9,6 +9,7 @@ import { prisma }  from "@/lib/prisma";
 import { cn }      from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
+import StartLearningButton from "@/components/StartLearningButton";
 
 export const metadata: Metadata = {
   title: "Student Dashboard — 4,000 Essential Words",
@@ -305,19 +306,13 @@ export default async function DashboardPage() {
                   intelligent study modes and live competition.
                 </p>
 
+import StartLearningButton from "@/components/StartLearningButton";
+
+// ... in DashboardPage component ...
                 {/* CTA buttons */}
                 <div className="flex flex-wrap gap-4 mt-8">
                   {firstUnitWithWords ? (
-                    <Link
-                      href={`/study/level/${firstUnitWithWords.levelNumber}/unit/${firstUnitWithWords.number}`}
-                      className="inline-flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-2xl font-bold text-sm shadow-xl shadow-primary/20 hover:bg-primary/90 hover:-translate-y-1 transition-all duration-300"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3}
-                          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      </svg>
-                      Start Learning
-                    </Link>
+                    <StartLearningButton unitId={firstUnitWithWords.id} />
                   ) : isAdmin ? (
                     <Link href="/admin/upload"
                       className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-8 py-3 rounded-2xl font-bold text-sm hover:bg-primary/20 transition-all">
