@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import ThemeToggle from "@/components/ThemeToggle";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import UserMenu from "@/components/UserMenu";
 
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
@@ -46,16 +47,14 @@ export default async function StudentLayout({ children }: { children: React.Reac
             ))}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <ThemeToggle />
-            <a href="/login"
-              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border/50 hover:bg-muted transition-colors hidden sm:block">
-              Sign In
-            </a>
+            <div className="h-8 w-px bg-border/40 mx-1 hidden sm:block" />
+            <UserMenu />
             {session?.user?.role === 'admin' && (
               <a href="/admin/dashboard"
-                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border/50 hover:bg-muted transition-colors hidden sm:block">
-                Admin ↗
+                className="text-xs font-semibold text-muted-foreground hover:text-primary transition-colors hidden sm:block">
+                Admin Hub ↗
               </a>
             )}
           </div>

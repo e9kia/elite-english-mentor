@@ -44,6 +44,7 @@ export default async function ProfilePage({ params }: { params: { username: stri
     where: { username: params.username },
     select: {
       id: true, username: true, avatarUrl: true, createdAt: true, role: true,
+      team: { select: { name: true } },
       leaderboard: true,
       userBadges: { include: { badge: true }, orderBy: { earnedAt: "asc" } },
       wordMastery: { select: { masteryLevel: true } },
@@ -83,31 +84,36 @@ export default async function ProfilePage({ params }: { params: { username: stri
   const BADGE_EMOJI: Record<string, string> = { "First Word": "🌱", "Word Explorer": "🗺️", "Vocabulary Master": "👑", default: "🏅" };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
+    <div className="max-w-2xl mx-auto space-y-10 animate-fade-in py-6">
       {/* Header */}
-      <div className="glass rounded-3xl border border-border/50 p-8 relative overflow-hidden">
+      <div className="glass rounded-[2.5rem] border border-border/50 p-10 relative overflow-hidden shadow-2xl">
         <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-        <div className="relative flex flex-col sm:flex-row items-center gap-6">
+        <div className="relative flex flex-col sm:flex-row items-center gap-8">
           {user.avatarUrl ? (
-            <img src={user.avatarUrl} alt={user.username} className="h-24 w-24 rounded-2xl object-cover border-4 border-background shadow-lg shrink-0" />
+            <img src={user.avatarUrl} alt={user.username} className="h-28 w-28 rounded-3xl object-cover border-4 border-background shadow-xl shrink-0" />
           ) : (
-            <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-primary/30 to-violet-500/30 border-4 border-background shadow-lg flex items-center justify-center text-4xl font-bold shrink-0 text-foreground">
+            <div className="h-28 w-28 rounded-3xl bg-gradient-to-br from-primary/30 to-violet-500/30 border-4 border-background shadow-xl flex items-center justify-center text-5xl font-black shrink-0 text-foreground">
               {user.username[0].toUpperCase()}
             </div>
           )}
           <div className="text-center sm:text-left flex-1">
-            <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start mb-1">
-              <h1 className="text-2xl font-bold text-foreground">{user.username}</h1>
-              {user.role === "admin" && <span className="text-xs bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded-full">Admin</span>}
+            <div className="flex flex-wrap items-center gap-3 justify-center sm:justify-start mb-2">
+              <h1 className="text-3xl font-black text-foreground tracking-tight">{user.username}</h1>
+              {user.role === "admin" && <span className="text-[10px] font-black uppercase tracking-widest bg-rose-500 text-white px-3 py-1 rounded-full">Admin</span>}
+              {user.team && (
+                <span className="text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-full">
+                  🛡️ Team {user.team.name}
+                </span>
+              )}
             </div>
-            <p className="text-sm text-muted-foreground">Member since {new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
-            <div className="flex flex-wrap gap-2 mt-3 justify-center sm:justify-start">
-              {streak > 0 && <span className="text-xs bg-amber-500/10 border border-amber-500/30 text-amber-400 px-3 py-1 rounded-full font-semibold">🔥 {streak}-day streak</span>}
-              <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-3 py-1 rounded-full font-semibold">⚡ {xp.toLocaleString()} XP</span>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Member since {new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+            <div className="flex flex-wrap gap-3 mt-5 justify-center sm:justify-start">
+              {streak > 0 && <span className="text-xs bg-amber-500 text-white px-4 py-1.5 rounded-xl font-bold shadow-lg shadow-amber-500/20">🔥 {streak} Day Streak</span>}
+              <span className="text-xs bg-primary text-white px-4 py-1.5 rounded-xl font-bold shadow-lg shadow-primary/20">⚡ {xp.toLocaleString()} XP</span>
             </div>
           </div>
           {isOwnProfile && (
-            <a href="/profile/edit" className="shrink-0 px-4 py-2 bg-muted/50 border border-border/50 text-foreground text-sm font-semibold rounded-xl hover:bg-muted transition-colors">
+            <a href="/profile/edit" className="shrink-0 px-5 py-2.5 bg-muted/50 border border-border/50 text-foreground text-sm font-bold rounded-2xl hover:bg-muted transition-all active:scale-95 shadow-sm">
               Edit Profile
             </a>
           )}

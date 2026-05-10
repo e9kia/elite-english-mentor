@@ -5,23 +5,23 @@
 /* 3. CSS Design Tokens (Premium Academic Theme) */
 @layer base {
   :root {
-    /* Soft Academic Light Theme */
-    --background: 40 43% 98%;
-    --foreground: 217 33% 17%;
-    --card: 0 0% 100%;
-    --card-foreground: 217 33% 17%;
-    --muted: 210 20% 96%;
+    /* Luxury Academic Light Theme */
+    --background: 30 25% 99%; /* #FDFCFB */
+    --foreground: 0 0% 10%;   /* #1A1A1A */
+    --card: 0 0% 100%;        /* #FFFFFF */
+    --card-foreground: 0 0% 10%;
+    --muted: 210 20% 98%;
     --muted-foreground: 215 16% 47%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --primary: 163 88% 20%;
+    --border: 220 13% 91%;    /* #E5E7EB */
+    --input: 220 13% 91%;
+    --primary: 161 84% 39%;   /* #10B981 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 217 33% 17%;
+    --secondary: 0 0% 10%;
     --secondary-foreground: 0 0% 100%;
-    --accent: 163 88% 20%;
+    --accent: 161 84% 39%;
     --accent-foreground: 0 0% 100%;
-    --ring: 163 88% 20%;
-    --radius: 0.75rem;
+    --ring: 161 84% 39%;
+    --radius: 1rem;
     --success: 158 64% 40%;
     --warning: 38 92% 50%;
     --error: 354 76% 60%;

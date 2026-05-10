@@ -15,7 +15,7 @@ async function resolveUser() {
 }
 
 const USER_SELECT = {
-  id: true, username: true, avatarUrl: true,
+  id: true, username: true, avatarUrl: true, role: true,
   leaderboard: { select: { totalXp: true, streakDays: true } },
 } as const;
 
@@ -47,13 +47,19 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const friends = accepted.map((f) => ({
-    friendshipId: f.id,
-    friend: f.requesterId === userId ? f.addressee : f.requester,
-    since: f.createdAt,
-  }));
+  const friends = accepted
+    .map((f) => ({
+      friendshipId: f.id,
+      friend: f.requesterId === userId ? f.addressee : f.requester,
+      since: f.createdAt,
+    }))
+    .filter((f) => f.friend.role !== "admin");
 
-  return NextResponse.json({ friends, pending, incoming });
+  return NextResponse.json({ 
+    friends, 
+    pending: pending.filter(p => p.addressee.role !== 'admin'), 
+    incoming: incoming.filter(i => i.requester.role !== 'admin') 
+  });
 }
 
 export async function POST(req: NextRequest) {

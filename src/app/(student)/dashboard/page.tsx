@@ -189,8 +189,86 @@ function ProgressRing({ pct, size = 88, stroke = 7, color = "#6366f1" }: {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+async function FriendsWidget({ userId }: { userId: string }) {
+  const friendships = await prisma.friendship.findMany({
+    where: {
+      status: "accepted",
+      OR: [{ requesterId: userId }, { addresseeId: userId }],
+    },
+    include: {
+      requester: {
+        select: {
+          id: true,
+          username: true,
+          avatarUrl: true,
+          role: true,
+        },
+      },
+      addressee: {
+        select: {
+          id: true,
+          username: true,
+          avatarUrl: true,
+          role: true,
+        },
+      },
+    },
+  });
+
+  // Filter out admins from friends list (Admin Privacy)
+  const friends = friendships
+    .map((f) => (f.requesterId === userId ? f.addressee : f.requester))
+    .filter((user) => user.role !== "admin");
+
+  return (
+    <div className="glass rounded-3xl border border-border/50 p-6 shadow-xl">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <span>👥</span> My Friends
+        </h2>
+        <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+          {friends.length} Active
+        </span>
+      </div>
+
+      {friends.length === 0 ? (
+        <div className="py-8 text-center border border-dashed border-border/50 rounded-2xl">
+          <p className="text-xs text-muted-foreground">No friends yet. Add some from the Leaderboard!</p>
+          <a href="/leaderboard" className="text-[10px] text-primary hover:underline mt-2 inline-block font-bold">Search Friends →</a>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {friends.map((friend) => (
+            <div key={friend.id} className="flex items-center justify-between p-3 bg-muted/20 border border-border/30 rounded-2xl hover:border-primary/30 transition-colors group">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary/20 to-emerald-500/20 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm overflow-hidden shrink-0">
+                  {friend.avatarUrl ? (
+                    <img src={friend.avatarUrl} alt={friend.username} className="h-full w-full object-cover" />
+                  ) : (
+                    friend.username[0].toUpperCase()
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-foreground truncate max-w-[100px]">{friend.username}</p>
+              </div>
+              <a href={`/compete/challenge/${friend.id}`} 
+                className="text-[10px] font-bold bg-amber-500 text-white px-3 py-1.5 rounded-lg shadow-sm hover:bg-amber-600 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0">
+                ⚔️ Challenge
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return null;
+  const userId = session.user.id;
+
   const isAdmin = session?.user?.role === "admin";
   const { totalWords, levelStats, recentBatch, firstUnitWithWords } = await getDashboardStats();
 
@@ -201,153 +279,145 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-10 animate-fade-in">
 
-      {/* ── Hero header ── */}
-      <div className="relative rounded-3xl overflow-hidden glass border border-border/50 p-8 md:p-12">
-        {/* Background glow */}
-        <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-violet-500/10 blur-3xl pointer-events-none" />
+      <div className="grid lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-10">
+          {/* ── Hero header ── */}
+          <div className="relative rounded-[2.5rem] overflow-hidden glass border border-border/50 p-8 md:p-12 shadow-2xl">
+            {/* Background glow */}
+            <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
 
-        <div className="relative flex flex-col md:flex-row md:items-center gap-8">
-          {/* Text */}
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse-slow" />
-              <span className="text-xs font-medium text-emerald-400">Learning System Active</span>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold leading-tight">
-              <span className="gradient-text">Student Hub</span>
-            </h1>
-            <p className="text-muted-foreground mt-3 max-w-lg text-base leading-relaxed">
-              Master the <span className="text-foreground font-semibold">4,000 Essential English Words</span> through
-              intelligent study modes, pronunciation checks, and live competition.
-            </p>
+            <div className="relative flex flex-col md:flex-row md:items-center gap-8">
+              {/* Text */}
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-2 w-2 rounded-full bg-primary animate-pulse-slow shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                  <span className="text-xs font-bold text-primary uppercase tracking-widest">Learning System Active</span>
+                </div>
+                <h1 className="text-4xl md:text-5xl font-extrabold leading-tight tracking-tight">
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">Student Hub</span>
+                </h1>
+                <p className="text-muted-foreground mt-4 max-w-lg text-base leading-relaxed font-medium">
+                  Master the <span className="text-foreground font-bold underline decoration-primary/30 decoration-4 underline-offset-4">4,000 Essential English Words</span> through
+                  intelligent study modes and live competition.
+                </p>
 
-            {/* CTA buttons */}
-            <div className="flex flex-wrap gap-3 mt-6">
-              {firstUnitWithWords ? (
-                <a
-                  href={`/study/level/${firstUnitWithWords.levelNumber}/unit/${firstUnitWithWords.number}`}
-                  className="inline-flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl font-semibold text-sm shadow-lg shadow-primary/30 hover:bg-primary/90 hover:-translate-y-0.5 transition-all duration-200"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Start Learning
-                </a>
-              ) : session?.user?.role === 'admin' ? (
-                <a href="/admin/upload"
-                  className="inline-flex items-center gap-2 bg-primary/20 border border-primary/30 text-primary px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary/30 transition-colors">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                  Upload Words to Start
-                </a>
-              ) : (
-                <span className="inline-flex items-center gap-2 bg-muted border border-border text-muted-foreground px-6 py-2.5 rounded-xl font-semibold text-sm cursor-not-allowed">
-                  Waiting for Content
-                </span>
-              )}
-              <a href="/compete"
-                className="inline-flex items-center gap-2 border border-border bg-transparent text-foreground px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-muted transition-colors">
-                <svg className="h-4 w-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Duel Mode
-              </a>
-            </div>
-          </div>
+                {/* CTA buttons */}
+                <div className="flex flex-wrap gap-4 mt-8">
+                  {firstUnitWithWords ? (
+                    <a
+                      href={`/study/level/${firstUnitWithWords.levelNumber}/unit/${firstUnitWithWords.number}`}
+                      className="inline-flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-2xl font-bold text-sm shadow-xl shadow-primary/20 hover:bg-primary/90 hover:-translate-y-1 transition-all duration-300"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3}
+                          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      </svg>
+                      Start Learning
+                    </a>
+                  ) : isAdmin ? (
+                    <a href="/admin/upload"
+                      className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-8 py-3 rounded-2xl font-bold text-sm hover:bg-primary/20 transition-all">
+                      Upload Words to Start
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-2 bg-muted border border-border text-muted-foreground px-8 py-3 rounded-2xl font-bold text-sm">
+                      Waiting for Content
+                    </span>
+                  )}
+                  <a href="/leaderboard"
+                    className="inline-flex items-center gap-2 border border-border/50 bg-background/50 backdrop-blur-sm text-foreground px-6 py-3 rounded-2xl font-bold text-sm hover:bg-muted transition-all">
+                    🏆 Global Leaderboard
+                  </a>
+                </div>
+              </div>
 
-          {/* Overall progress ring */}
-          <div className="flex flex-col items-center gap-3 shrink-0">
-            <div className="relative">
-              <ProgressRing pct={overallPct} size={110} stroke={8} />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-foreground">{overallPct}%</span>
-                <span className="text-[10px] text-muted-foreground">loaded</span>
+              {/* Overall progress ring */}
+              <div className="flex flex-col items-center gap-3 shrink-0 bg-white/50 dark:bg-black/20 p-6 rounded-[2rem] border border-border/30">
+                <div className="relative">
+                  <ProgressRing pct={overallPct} size={100} stroke={10} color="hsl(var(--primary))" />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-black text-foreground">{overallPct}%</span>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">loaded</span>
+                  </div>
+                </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground text-center">
-              {totalUnitsLoaded} / 180 units<br />populated
-            </p>
+          </div>
+
+          {/* ── Stats row ── */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <StatCard
+              accent
+              icon="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+              label="Words Total"
+              value={totalWords.toLocaleString()}
+              sub="System Database"
+            />
+            <StatCard
+              icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              label="Units Loaded"
+              value={totalUnitsLoaded}
+              sub={`of 180 total`}
+            />
+            <StatCard
+              icon="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"
+              label="Levels Active"
+              value={levelsWithWords}
+              sub="of 6 levels"
+            />
+            <StatCard
+              icon="M13 10V3L4 14h7v7l9-11h-7z"
+              label="Duels"
+              value={0}
+              sub="Start competing"
+            />
           </div>
         </div>
-      </div>
 
-      {/* ── Stats row ── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard
-          accent
-          icon="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-          label="Words Available"
-          value={totalWords.toLocaleString()}
-          sub="Ready to study"
-        />
-        <StatCard
-          icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          label="Units Loaded"
-          value={totalUnitsLoaded}
-          sub={`of 180 total`}
-        />
-        <StatCard
-          icon="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"
-          label="Levels Active"
-          value={levelsWithWords}
-          sub="of 6 levels"
-        />
-        <StatCard
-          icon="M13 10V3L4 14h7v7l9-11h-7z"
-          label="Duels Played"
-          value={0}
-          sub="Start competing!"
-        />
-      </div>
+        {/* Sidebar Widgets */}
+        <div className="space-y-8">
+          <React.Suspense fallback={<div className="h-48 glass rounded-3xl animate-pulse" />}>
+            <FriendsWidget userId={userId} />
+          </React.Suspense>
 
-      {/* ── Recent import notice ── */}
-      {recentBatch && (
-        <div className="glass rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 flex items-center gap-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/20 shrink-0">
-            <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">
-              Latest import: <span className="text-emerald-400 font-mono">{recentBatch.filename}</span>
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {recentBatch.importedCount} words added ·{" "}
-              {new Date(recentBatch.createdAt).toLocaleDateString("en-US", {
-                month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit",
-              })}
-            </p>
-          </div>
-          <a href="/admin/upload"
-            className="text-xs font-medium text-emerald-400 hover:underline underline-offset-2 shrink-0">
-            Import more →
-          </a>
+          {recentBatch && (
+            <div className="glass rounded-3xl border border-primary/20 bg-primary/5 p-6 shadow-lg">
+              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                Latest Update
+              </h3>
+              <p className="text-xs font-bold text-foreground truncate mb-1">{recentBatch.filename}</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                {recentBatch.importedCount} Words added
+              </p>
+              <div className="h-1 bg-primary/20 rounded-full mt-4 overflow-hidden">
+                <div className="h-full bg-primary w-full animate-pulse-slow" />
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* ── 6 Level Cards ── */}
       <div>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-bold text-foreground">
-            All 6 Levels
-            <span className="ml-2 text-sm font-normal text-muted-foreground">· 30 units each</span>
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-2xl font-extrabold text-foreground tracking-tight">
+            Curriculum Path
+            <span className="ml-3 text-xs font-bold text-muted-foreground uppercase tracking-widest border border-border/50 px-3 py-1 rounded-full bg-muted/30">
+              180 Units Total
+            </span>
           </h2>
-          <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-1 rounded-md">
-            {totalWords} / 4,000 words
-          </span>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {levelStats.map((level) => (
             <LevelCard key={level.id} level={level} />
           ))}
         </div>
       </div>
+    </div>
+  );
+}
 
       {/* ── Quick action cards ── */}
       <div>
