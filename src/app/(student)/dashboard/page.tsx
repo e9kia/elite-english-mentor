@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma }  from "@/lib/prisma";
 import { cn }      from "@/lib/utils";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Student Dashboard — 4,000 Essential Words",
@@ -152,8 +153,8 @@ function LevelCard({ level }: { level: Awaited<ReturnType<typeof getDashboardSta
       </div>
 
       {/* CTA */}
-      {hasWords && (
-        <a
+        {hasWords && (
+        <Link
           href={`/study/level/${level.number}`}
           className={cn(
             "mt-4 flex items-center gap-1.5 text-xs font-medium transition-colors",
@@ -164,7 +165,7 @@ function LevelCard({ level }: { level: Awaited<ReturnType<typeof getDashboardSta
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
           Study Level {level.number}
-        </a>
+        </Link>
       )}
     </div>
   );
@@ -197,68 +198,69 @@ async function FriendsWidget({ userId }: { userId: string }) {
       OR: [{ requesterId: userId }, { addresseeId: userId }],
     },
     include: {
-      requester: {
-        select: {
-          id: true,
-          username: true,
-          avatarUrl: true,
-          role: true,
-        },
-      },
-      addressee: {
-        select: {
-          id: true,
-          username: true,
-          avatarUrl: true,
-          role: true,
-        },
-      },
+      requester: { select: { id: true, username: true, avatarUrl: true, role: true } },
+      addressee: { select: { id: true, username: true, avatarUrl: true, role: true } },
     },
   });
 
-  // Filter out admins from friends list (Admin Privacy)
   const friends = friendships
     .map((f) => (f.requesterId === userId ? f.addressee : f.requester))
     .filter((user) => user.role !== "admin");
 
   return (
-    <div className="glass rounded-3xl border border-border/50 p-6 shadow-xl">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-          <span>👥</span> My Friends
+    <div className="glass rounded-[2rem] border border-border/50 p-6 shadow-xl space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+          <span>👥</span> Friends
         </h2>
-        <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+        <span className="text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20">
           {friends.length} Active
         </span>
       </div>
 
-      {friends.length === 0 ? (
-        <div className="py-8 text-center border border-dashed border-border/50 rounded-2xl">
-          <p className="text-xs text-muted-foreground">No friends yet. Add some from the Leaderboard!</p>
-          <a href="/leaderboard" className="text-[10px] text-primary hover:underline mt-2 inline-block font-bold">Search Friends →</a>
+      {/* Search Bar (Links to Leaderboard) */}
+      <Link href="/leaderboard" className="block">
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <div className="w-full bg-muted/30 border border-border/50 rounded-xl py-2 pl-9 pr-3 text-xs text-muted-foreground group-hover:border-primary/30 group-hover:bg-muted/50 transition-all cursor-text">
+            Add new friends…
+          </div>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {friends.map((friend) => (
-            <div key={friend.id} className="flex items-center justify-between p-3 bg-muted/20 border border-border/30 rounded-2xl hover:border-primary/30 transition-colors group">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary/20 to-emerald-500/20 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm overflow-hidden shrink-0">
+      </Link>
+
+      <div className="space-y-2.5">
+        {friends.length === 0 ? (
+          <div className="py-8 text-center border border-dashed border-border/50 rounded-2xl bg-muted/5">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">No friends yet</p>
+            <Link href="/leaderboard" className="text-[11px] text-primary hover:underline mt-2 inline-block font-bold">
+              Find someone to add →
+            </Link>
+          </div>
+        ) : (
+          friends.map((friend) => (
+            <div key={friend.id} className="flex items-center justify-between p-2.5 bg-muted/10 border border-border/30 rounded-2xl hover:border-primary/30 hover:bg-muted/20 transition-all group">
+              <Link href={`/profile/${friend.username}`} className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary/20 to-emerald-500/20 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs overflow-hidden shrink-0">
                   {friend.avatarUrl ? (
                     <img src={friend.avatarUrl} alt={friend.username} className="h-full w-full object-cover" />
                   ) : (
                     friend.username[0].toUpperCase()
                   )}
                 </div>
-                <p className="text-sm font-semibold text-foreground truncate max-w-[100px]">{friend.username}</p>
-              </div>
-              <a href={`/compete/challenge/${friend.id}`} 
-                className="text-[10px] font-bold bg-amber-500 text-white px-3 py-1.5 rounded-lg shadow-sm hover:bg-amber-600 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0">
-                ⚔️ Challenge
-              </a>
+                <p className="text-xs font-bold text-foreground truncate">{friend.username}</p>
+              </Link>
+              <Link href={`/compete/challenge/${friend.id}`} 
+                className="text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white px-3 py-1.5 rounded-lg shadow-lg shadow-amber-500/20 hover:bg-amber-600 hover:-translate-y-0.5 active:scale-95 transition-all opacity-0 group-hover:opacity-100">
+                ⚔️ Duel
+              </Link>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -306,7 +308,7 @@ export default async function DashboardPage() {
                 {/* CTA buttons */}
                 <div className="flex flex-wrap gap-4 mt-8">
                   {firstUnitWithWords ? (
-                    <a
+                    <Link
                       href={`/study/level/${firstUnitWithWords.levelNumber}/unit/${firstUnitWithWords.number}`}
                       className="inline-flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-2xl font-bold text-sm shadow-xl shadow-primary/20 hover:bg-primary/90 hover:-translate-y-1 transition-all duration-300"
                     >
@@ -315,21 +317,21 @@ export default async function DashboardPage() {
                           d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                       </svg>
                       Start Learning
-                    </a>
+                    </Link>
                   ) : isAdmin ? (
-                    <a href="/admin/upload"
+                    <Link href="/admin/upload"
                       className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-8 py-3 rounded-2xl font-bold text-sm hover:bg-primary/20 transition-all">
                       Upload Words to Start
-                    </a>
+                    </Link>
                   ) : (
                     <span className="inline-flex items-center gap-2 bg-muted border border-border text-muted-foreground px-8 py-3 rounded-2xl font-bold text-sm">
                       Waiting for Content
                     </span>
                   )}
-                  <a href="/leaderboard"
+                  <Link href="/leaderboard"
                     className="inline-flex items-center gap-2 border border-border/50 bg-background/50 backdrop-blur-sm text-foreground px-6 py-3 rounded-2xl font-bold text-sm hover:bg-muted transition-all">
                     🏆 Global Leaderboard
-                  </a>
+                  </Link>
                 </div>
               </div>
 

@@ -36,18 +36,30 @@ export default function UserMenu() {
   const avatarUrl = (session.user as any).avatarUrl;
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 group outline-none"
+    <div className="relative flex items-center gap-1" ref={menuRef}>
+      <a
+        href={`/profile/${session.user.username}`}
+        className="flex items-center gap-2.5 px-2 py-1.5 rounded-2xl hover:bg-muted/50 transition-all group"
       >
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-emerald-600 border-2 border-background shadow-md flex items-center justify-center overflow-hidden shrink-0 transition-transform active:scale-95">
+        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-emerald-600 border-2 border-background shadow-md flex items-center justify-center overflow-hidden shrink-0 transition-transform active:scale-95 group-hover:scale-105">
           {avatarUrl ? (
             <img src={avatarUrl} alt={session.user.username || "User"} className="h-full w-full object-cover" />
           ) : (
             <span className="text-white text-xs font-bold">{initials}</span>
           )}
         </div>
+        <span className="text-sm font-bold text-foreground hidden sm:block">
+          {session.user.username}
+        </span>
+      </a>
+
+      <button
+        onClick={() => setOpen(!open)}
+        className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-muted/50 transition-all text-muted-foreground hover:text-foreground"
+      >
+        <svg className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
 
       {open && (

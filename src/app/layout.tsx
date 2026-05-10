@@ -12,11 +12,15 @@ export const metadata: Metadata = {
   description: "Academic English Learning Platform — Admin Panel",
 };
 
+import { Providers } from "@/components/Providers";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
-        {children}
+        <Providers>
+          {children}
+        </Providers>
         <Toaster
           theme="dark"
           position="top-right"

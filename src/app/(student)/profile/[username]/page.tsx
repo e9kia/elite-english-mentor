@@ -1,4 +1,3 @@
-// src/app/(student)/profile/[username]/page.tsx
 export const dynamic = 'force-dynamic';
 import { notFound } from "next/navigation";
 import { prisma }   from "@/lib/prisma";
@@ -6,6 +5,7 @@ import { cn }       from "@/lib/utils";
 import type { Metadata } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import Link from "next/link";
 
 export async function generateMetadata({ params }: { params: { username: string } }): Promise<Metadata> {
   return { title: `${params.username}'s Profile — 4,000 Essential Words` };
@@ -113,9 +113,9 @@ export default async function ProfilePage({ params }: { params: { username: stri
             </div>
           </div>
           {isOwnProfile && (
-            <a href="/profile/edit" className="shrink-0 px-5 py-2.5 bg-muted/50 border border-border/50 text-foreground text-sm font-bold rounded-2xl hover:bg-muted transition-all active:scale-95 shadow-sm">
+            <Link href="/profile/edit" className="shrink-0 px-5 py-2.5 bg-muted/50 border border-border/50 text-foreground text-sm font-bold rounded-2xl hover:bg-muted transition-all active:scale-95 shadow-sm">
               Edit Profile
-            </a>
+            </Link>
           )}
         </div>
       </div>
@@ -167,10 +167,10 @@ export default async function ProfilePage({ params }: { params: { username: stri
       )}
 
       <div className="flex justify-center">
-        <a href="/leaderboard" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors">
+        <Link href="/leaderboard" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           Back to Leaderboard
-        </a>
+        </Link>
       </div>
     </div>
   );
