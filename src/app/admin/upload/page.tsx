@@ -75,7 +75,6 @@ function parseBuffer(buffer: ArrayBuffer, filename: string): ParsedWord[] {
     if (!norm.word) errors.push("Missing Word");
     if (!norm.type) errors.push("Missing Type");
     else if (!WORD_TYPES.includes(String(norm.type).toLowerCase())) errors.push(`Invalid Type: ${norm.type}`);
-    if (!norm.definition) errors.push("Missing Definition");
     if (!norm.example) errors.push("Missing Example");
     const lvl = Number(norm.level);
     if (!norm.level || isNaN(lvl) || lvl < 1) errors.push("Level must be a positive number");

@@ -30,9 +30,9 @@ export const wordRowSchema = z.object({
     )
     .transform((v) => v as (typeof WORD_TYPES)[number]),
 
-  /** Plain-English definition */
+  /** Plain-English definition (Optional in AI-First mode) */
   definition: z
-    .string({ required_error: "Missing 'Definition' column" })
+    .string()
     .trim()
     .max(1000)
     .optional()
