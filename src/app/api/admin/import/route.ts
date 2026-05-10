@@ -104,6 +104,10 @@ export async function POST(req: NextRequest) {
 
     // ── 4. Read file into Buffer ──────────────────────────────────
     const buffer = Buffer.from(await file.arrayBuffer());
+    // Fix: If it's a CSV, ensure we can handle UTF-8 symbols
+    // However, XLSX.read handles buffers directly. 
+    // To be extra safe for Arabic, we can pass it through a decoder if it's text.
+    // But XLSX.read(buffer) is usually best for mixed types.
 
     // ── 5. Run import engine ──────────────────────────────────────
     const result = await importWordsFromBuffer({

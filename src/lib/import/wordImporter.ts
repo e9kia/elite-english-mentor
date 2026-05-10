@@ -101,6 +101,12 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
       // Normalise keys to canonical field names
       const normalised = normaliseRow(raw);
 
+      // Pre-process types to pass strict validation as requested
+      const rawPos = String(normalised.type || "").toLowerCase();
+      if (["preposition", "pronoun", "conjunction"].includes(rawPos)) {
+        normalised.type = "other";
+      }
+
       // Zod validation
       const parsed = wordRowSchema.safeParse(normalised);
       if (!parsed.success) {
@@ -111,17 +117,22 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
 
       const data: WordRow = parsed.data;
 
-      // Resolve unit ID
-      const unitKey = `${data.level}-${data.unit}`;
-      const unitId = unitCache.get(unitKey);
-      if (!unitId) {
-        errors.push({
-          row: rowNum,
-          word: data.word,
-          reason: `Level ${data.level} Unit ${data.unit} does not exist in the database. Run db:seed first.`,
-        });
-        continue;
-      }
+      // FORCED UPSERT (No more db:seed error)
+      const level = await prisma.level.upsert({
+        where: { number: data.level },
+        update: {},
+        create: { number: data.level, title: `Level ${data.level}` },
+      });
+
+      const unit = await prisma.unit.upsert({
+        where: {
+          levelId_number: { levelId: level.id, number: data.unit },
+        },
+        update: {},
+        create: { levelId: level.id, number: data.unit, title: `Unit ${data.unit}` },
+      });
+
+      const unitId = unit.id;
 
       toUpsert.push({
         unitId,
@@ -226,12 +237,14 @@ function parseFile(buffer: Buffer, filename: string): Record<string, unknown>[] 
   const sheet = workbook.Sheets[sheetName];
 
   if (ext === "csv") {
-    // For CSV, XLSX still works; just returns one sheet
-    const csvData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: "",      // empty cells → empty string (not undefined)
+    // MANDATORY FIX FOR ARABIC SYMBOLS: Use TextDecoder
+    const csvText = new TextDecoder("utf-8").decode(buffer);
+    const workbookFromCsv = XLSX.read(csvText, { type: "string" });
+    const sheet = workbookFromCsv.Sheets[workbookFromCsv.SheetNames[0]];
+    return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      defval: "",
       raw: false,
     });
-    return csvData;
   }
 
   return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
