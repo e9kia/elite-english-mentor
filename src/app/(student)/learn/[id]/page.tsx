@@ -3,10 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cn } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export default async function LearningPage({ params }: { params: { id: string } }) {
   const unitId = parseInt(params.id);
+  console.log(`[LEARN] Accessing Unit ID: ${unitId}`);
 
   if (isNaN(unitId)) {
+    console.error(`[LEARN] Invalid Unit ID: ${params.id}`);
     return notFound();
   }
 
@@ -19,6 +23,8 @@ export default async function LearningPage({ params }: { params: { id: string } 
       }
     }
   });
+
+  console.log(`[LEARN] Unit: ${unit?.title || 'Not Found'}, Words: ${unit?.words.length || 0}`);
 
   if (!unit) {
     return (
