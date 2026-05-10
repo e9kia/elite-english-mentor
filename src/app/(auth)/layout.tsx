@@ -23,6 +23,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <p className="text-muted-foreground text-sm">Academic English Learning Platform</p>
         </div>
         {children}
+
+        {/* Signature */}
+        <div className="mt-8 text-center animate-fade-in opacity-0" style={{ animationDelay: "400ms", animationFillMode: "forwards" }}>
+          <p className="text-[10px] font-medium text-muted-foreground/40 italic tracking-wide">
+            Crafted with precision by <span className="text-foreground/40 not-italic font-bold">Ali Jitam ❤️</span>
+          </p>
+        </div>
       </div>
     </div>
   );

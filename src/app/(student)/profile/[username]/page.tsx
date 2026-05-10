@@ -166,7 +166,14 @@ export default async function ProfilePage({ params }: { params: { username: stri
         </div>
       )}
 
-      <div className="flex justify-center">
+      <div className="flex flex-col items-center gap-4 pt-10 border-t border-border/20">
+        <div className="flex items-center gap-2 px-4 py-2 rounded-full glass border border-primary/10">
+          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground/60">
+            Platform Architect: <span className="text-foreground">Ali Jitam ❤️</span>
+          </p>
+        </div>
+
         <Link href="/leaderboard" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           Back to Leaderboard

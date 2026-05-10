@@ -67,6 +67,8 @@ function StatCard({ label, value, icon, sub, accent = false }: { label: string; 
   );
 }
 
+import AdminUploadButton from "@/components/AdminUploadButton";
+
 export default async function AdminDashboard() {
   const s = await getAdminStats();
 
@@ -82,12 +84,10 @@ export default async function AdminDashboard() {
           <h1 className="text-3xl font-bold gradient-text">Overlord Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">Full system oversight and control</p>
         </div>
-        <div className="flex gap-2">
-          <a href="/admin/upload" className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/25">
-            📤 Import Words
-          </a>
-          <a href="/admin/words" className="inline-flex items-center gap-2 border border-border text-foreground px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-muted transition-colors">
-            ✏️ Manage Words
+        <div className="flex gap-3">
+          <AdminUploadButton />
+          <a href="/admin/words" className="inline-flex items-center gap-2 border border-border/50 glass text-foreground px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-muted transition-colors">
+            ✏️ Manage
           </a>
         </div>
       </div>

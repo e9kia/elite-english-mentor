@@ -21,6 +21,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           {children}
         </Providers>
+
+        <footer className="mt-auto py-10 border-t border-border/40">
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-[10px] md:text-xs font-medium text-muted-foreground/60 tracking-wider">
+              Designed & Developed by <span className="text-foreground/80 font-bold">Ali Jitam ❤️</span>
+            </p>
+            <div className="h-px w-8 bg-border/50" />
+            <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground/40 font-bold">
+              © 2026 Elite English Mentor
+            </p>
+          </div>
+        </footer>
+
         <Toaster
           theme="dark"
           position="top-right"
