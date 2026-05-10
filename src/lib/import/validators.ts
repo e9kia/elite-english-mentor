@@ -34,8 +34,9 @@ export const wordRowSchema = z.object({
   definition: z
     .string({ required_error: "Missing 'Definition' column" })
     .trim()
-    .min(3, "Definition is too short")
-    .max(1000),
+    .max(1000)
+    .optional()
+    .default(""),
 
   /** Example sentence using the word */
   example: z

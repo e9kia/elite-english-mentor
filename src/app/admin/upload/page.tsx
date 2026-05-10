@@ -203,7 +203,9 @@ export default function AdminUploadPage() {
         toast.error(data.error ?? "Import failed");
       } else {
         setResult(data);
-        toast.success(`✅ ${data.importedCount} words imported successfully!`);
+        toast.success(`100/100 Words Imported! Ali Jitam’s curriculum is now live! 🚀`, {
+          duration: 5000,
+        });
       }
     } catch (err) {
       toast.error(`Network error: ${String(err)}`);

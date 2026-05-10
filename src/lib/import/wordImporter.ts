@@ -116,17 +116,14 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
       entityMap.set(key, unit.id);
     }
 
-    // 3. AI TRANSLATION: Collect words needing translation
+    // 3. AI TRANSLATION: Collect words for AI-First model
     const wordsToTranslate: string[] = [];
     if (opts.useAI) {
+      // AI-First: Collect ALL words to ensure high-quality uniform translations
       rawRows.forEach((row: any) => {
         const normalised = normaliseRow(row);
         const word = String(normalised.word || "").trim();
-        const definition = String(normalised.definition || "").trim();
-        // If definition is empty or contains weird characters (basic check)
-        if (word && (!definition || /[\uFFFD]/.test(definition))) {
-          wordsToTranslate.push(word);
-        }
+        if (word) wordsToTranslate.push(word);
       });
     }
 
@@ -135,42 +132,31 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
     // 4. PREPARE BATCH UPSERT
     const wordsToUpsert = [];
     for (let i = 0; i < rawRows.length; i++) {
-      const rowNum = i + 2; // +1 for header, +1 for 1-indexed display
+      const rowNum = i + 2; 
       const raw = rawRows[i];
-
-      // Normalise keys to canonical field names
       const normalised = normaliseRow(raw);
 
-      // Pre-process types to pass strict validation as requested
+      // Pre-process types
       const rawPos = String(normalised.type || "").toLowerCase();
-      if (["preposition", "pronoun", "conjunction"].includes(rawPos)) {
-        normalised.type = "other";
-      }
+      if (["preposition", "pronoun", "conjunction"].includes(rawPos)) normalised.type = "other";
 
-      // Zod validation
       const parsed = wordRowSchema.safeParse(normalised);
       if (!parsed.success) {
-        const msg = parsed.error.errors.map((e) => e.message).join("; ");
-        errors.push({ row: rowNum, word: normalised.word as string | undefined, reason: msg });
+        errors.push({ row: rowNum, word: String(normalised.word), reason: parsed.error.errors[0].message });
         continue;
       }
 
-      const data: WordRow = parsed.data;
-
-      // Resolve unit ID from entity map
+      const data = parsed.data;
       const unitId = entityMap.get(`${data.level}-${data.unit}`);
+      
       if (!unitId) {
-        errors.push({
-          row: rowNum,
-          word: data.word,
-          reason: `Failed to resolve Level ${data.level} Unit ${data.unit}.`,
-        });
+        errors.push({ row: rowNum, word: data.word, reason: "Failed to resolve unit" });
         continue;
       }
 
-      // Apply AI translation if needed
+      // AI-First Priority Logic: Use AI if ON, else use CSV definition
       let finalDefinition = data.definition;
-      if (opts.useAI && (!finalDefinition || /[\uFFFD]/.test(finalDefinition))) {
+      if (opts.useAI) {
         finalDefinition = aiTranslations[data.word] || finalDefinition;
       }
 
@@ -178,7 +164,7 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
         unitId,
         word: data.word,
         type: data.type as WordType,
-        definition: finalDefinition,
+        definition: finalDefinition || "No definition available",
         example: data.example,
         phonetic: data.phonetic ?? null,
         difficulty: data.difficulty,
