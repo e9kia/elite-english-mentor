@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     const parsed = Papa.parse(csvText, {
       header: true,
       skipEmptyLines: true,
+      transformHeader: (h) => h.trim(), // Keep original casing but trim
     });
 
     const rows = parsed.data as any[];
@@ -44,25 +45,26 @@ export async function POST(req: Request) {
 
     for (const row of rows) {
       try {
-        const wordStr = row.Word?.trim();
-        const translation = row.Translation?.trim();
-        const pos = row.PartOfSpeech?.trim().toLowerCase();
-        const levelNum = parseInt(row.Level);
-        const unitNum = parseInt(row.Unit);
-        const example = row.Example?.trim();
+        // Robust mapping: check multiple variants or just the specific ones
+        const wordStr = (row.Word || row.word || "").trim();
+        const translation = (row.Translation || row.translation || row.Definition || row.definition || "").trim();
+        const pos = (row.PartOfSpeech || row.partofspeech || row.Type || row.type || "").trim().toLowerCase();
+        const levelNum = parseInt(row.Level || row.level);
+        const unitNum = parseInt(row.Unit || row.unit);
+        const example = (row.Example || row.example || "").trim();
 
         if (!wordStr || !translation || isNaN(levelNum) || isNaN(unitNum)) {
           skippedCount++;
           continue;
         }
 
-        // Map POS to enum
+        // Map POS to enum (Case-Insensitive)
         let type: WordType = WordType.other;
-        if (pos === "noun") type = WordType.noun;
-        else if (pos === "verb") type = WordType.verb;
-        else if (pos === "adjective") type = WordType.adjective;
-        else if (pos === "adverb") type = WordType.adverb;
-        else if (pos === "phrase") type = WordType.phrase;
+        if (pos.includes("noun")) type = WordType.noun;
+        else if (pos.includes("verb")) type = WordType.verb;
+        else if (pos.includes("adjective") || pos === "adj") type = WordType.adjective;
+        else if (pos.includes("adverb") || pos === "adv") type = WordType.adverb;
+        else if (pos.includes("phrase")) type = WordType.phrase;
 
         // 1. Get or create Level
         const level = await prisma.level.upsert({
