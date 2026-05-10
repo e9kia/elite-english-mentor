@@ -2,28 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 3. CSS Design Tokens (Dark Academic Theme) */
+/* 3. CSS Design Tokens (Premium Academic Theme) */
 @layer base {
   :root {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 93%;
-    --card: 222 40% 11%;
-    --card-foreground: 210 40% 93%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 55%;
-    --border: 217 30% 20%;
-    --input: 217 30% 15%;
-    --primary: 239 84% 67%;
+    /* Beige Light Theme */
+    --background: 40 33% 96%;
+    --foreground: 20 20% 20%;
+    --card: 40 30% 98%;
+    --card-foreground: 20 20% 20%;
+    --muted: 40 20% 90%;
+    --muted-foreground: 20 10% 45%;
+    --border: 40 15% 85%;
+    --input: 40 20% 90%;
+    --primary: 25 70% 45%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 93%;
-    --accent: 239 84% 67%;
+    --secondary: 40 20% 90%;
+    --secondary-foreground: 20 20% 20%;
+    --accent: 25 70% 45%;
     --accent-foreground: 0 0% 100%;
-    --ring: 239 84% 67%;
+    --ring: 25 70% 45%;
     --radius: 0.625rem;
     --success: 158 64% 40%;
     --warning: 38 92% 50%;
     --error: 354 76% 60%;
+  }
+
+  [data-theme="dark"] {
+    /* Emerald Dark Theme */
+    --background: 160 20% 8%;
+    --foreground: 160 40% 90%;
+    --card: 160 20% 11%;
+    --card-foreground: 160 40% 90%;
+    --muted: 160 30% 15%;
+    --muted-foreground: 160 20% 55%;
+    --border: 160 30% 20%;
+    --input: 160 30% 15%;
+    --primary: 158 84% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 30% 15%;
+    --secondary-foreground: 160 40% 90%;
+    --accent: 158 84% 40%;
+    --accent-foreground: 0 0% 100%;
+    --ring: 158 84% 40%;
   }
 }
 
@@ -126,27 +146,4 @@
 
 html {
   scroll-behavior: smooth;
-}
-
-/* High Contrast Theme */
-[data-theme="high-contrast"] {
-  --background: 0 0% 4%;
-  --foreground: 0 0% 100%;
-  --card: 0 0% 8%;
-  --card-foreground: 0 0% 100%;
-  --muted: 0 0% 14%;
-  --muted-foreground: 0 0% 70%;
-  --border: 0 0% 30%;
-  --primary: 239 100% 75%;
-  --ring: 239 100% 75%;
-}
-
-[data-theme="high-contrast"] body {
-  font-size: 17px;
-  letter-spacing: 0.01em;
-}
-
-[data-theme="high-contrast"] .glass {
-  background: rgba(10, 10, 10, 0.95);
-  border-color: rgba(255, 255, 255, 0.15);
 }

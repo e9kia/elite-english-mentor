@@ -1,6 +1,15 @@
 import { cn } from "@/lib/utils";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession(authOptions);
+
+  if (!session || session.user.role !== "admin") {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Top navigation bar */}

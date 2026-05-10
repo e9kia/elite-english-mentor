@@ -121,6 +121,14 @@ export default function LeaderboardPage() {
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
 
       {/* Header */}
+      <div className="mb-4">
+        <a href="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Dashboard
+        </a>
+      </div>
       <div className="text-center space-y-1">
         <h1 className="text-4xl font-bold gradient-text">Leaderboard</h1>
         <p className="text-sm text-muted-foreground">Compete with friends · Earn XP · Climb the ranks</p>

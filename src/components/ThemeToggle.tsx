@@ -5,10 +5,10 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-type Theme = "dark" | "high-contrast";
+type Theme = "light" | "dark";
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
     const saved = localStorage.getItem("theme") as Theme | null;
@@ -17,39 +17,40 @@ export default function ThemeToggle() {
 
   const applyTheme = (t: Theme) => {
     setTheme(t);
-    document.documentElement.setAttribute("data-theme", t === "dark" ? "" : t);
+    document.documentElement.setAttribute("data-theme", t === "light" ? "" : t);
     localStorage.setItem("theme", t);
   };
 
-  const toggle = () => applyTheme(theme === "dark" ? "high-contrast" : "dark");
+  const toggle = () => applyTheme(theme === "light" ? "dark" : "light");
 
   return (
     <button
       onClick={toggle}
-      title={theme === "dark" ? "Switch to High Contrast" : "Switch to Dark mode"}
+      title={theme === "light" ? "Switch to Dark mode" : "Switch to Light mode"}
       aria-label="Toggle theme"
       className={cn(
         "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all",
         "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
       )}
     >
-      {theme === "dark" ? (
+      {theme === "light" ? (
         <>
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM12 3v1m6.364 1.636l-.707.707M21 12h-1M17.657 17.657l-.707.707M12 20v1M6.343 17.657l-.707.707M4 12H3M6.343 6.343l-.707-.707" />
+              d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
           </svg>
-          <span className="hidden sm:inline">High Contrast</span>
+          <span className="hidden sm:inline">Dark Mode</span>
         </>
       ) : (
         <>
           <svg className="h-3.5 w-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
-          <span className="hidden sm:inline text-primary">Dark Mode</span>
+          <span className="hidden sm:inline text-primary">Light Mode</span>
         </>
       )}
     </button>
   );
 }
+

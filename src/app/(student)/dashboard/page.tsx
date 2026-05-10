@@ -2,6 +2,8 @@
 // Server Component — fetches real stats directly from Prisma (no API round-trip)
 
 export const dynamic = 'force-dynamic';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 import { prisma }  from "@/lib/prisma";
 import { cn }      from "@/lib/utils";
 import type { Metadata } from "next";
@@ -188,6 +190,8 @@ function ProgressRing({ pct, size = 88, stroke = 7, color = "#6366f1" }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
+  const session = await getServerSession(authOptions);
+  const isAdmin = session?.user?.role === "admin";
   const { totalWords, levelStats, recentBatch, firstUnitWithWords } = await getDashboardStats();
 
   const levelsWithWords   = levelStats.filter((l) => l.wordCount > 0).length;
@@ -232,7 +236,7 @@ export default async function DashboardPage() {
                   </svg>
                   Start Learning
                 </a>
-              ) : (
+              ) : isAdmin ? (
                 <a href="/admin/upload"
                   className="inline-flex items-center gap-2 bg-primary/20 border border-primary/30 text-primary px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary/30 transition-colors">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -241,6 +245,10 @@ export default async function DashboardPage() {
                   </svg>
                   Upload Words to Start
                 </a>
+              ) : (
+                <span className="inline-flex items-center gap-2 bg-muted border border-border text-muted-foreground px-6 py-2.5 rounded-xl font-semibold text-sm cursor-not-allowed">
+                  Waiting for Content
+                </span>
               )}
               <a href="/compete"
                 className="inline-flex items-center gap-2 border border-border bg-transparent text-foreground px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-muted transition-colors">
@@ -415,13 +423,21 @@ export default async function DashboardPage() {
             </svg>
           </div>
           <h3 className="text-lg font-semibold text-foreground mb-2">No words yet</h3>
-          <p className="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">
-            Upload your first CSV or Excel file to populate the vocabulary database.
-          </p>
-          <a href="/admin/upload"
-            className="inline-flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl font-medium text-sm shadow-lg shadow-primary/25 hover:bg-primary/90 transition-colors">
-            Go to Admin Upload
-          </a>
+          {isAdmin ? (
+            <>
+              <p className="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">
+                Upload your first CSV or Excel file to populate the vocabulary database.
+              </p>
+              <a href="/admin/upload"
+                className="inline-flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl font-medium text-sm shadow-lg shadow-primary/25 hover:bg-primary/90 transition-colors">
+                Go to Admin Upload
+              </a>
+            </>
+          ) : (
+            <p className="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">
+              The database is currently empty. Check back later for new study materials!
+            </p>
+          )}
         </div>
       )}
     </div>
