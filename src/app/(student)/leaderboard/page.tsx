@@ -59,9 +59,10 @@ function AddFriendBtn({ userId, status, onAction }: {
 
 /* ── Main page ────────────────────────────────────────────────── */
 export default function LeaderboardPage() {
-  const [tab, setTab]           = useState<"global" | "friends">("global");
+  const [tab, setTab]           = useState<"global" | "friends" | "teams">("global");
   const [global, setGlobal]     = useState<Leader[]>([]);
   const [friends, setFriends]   = useState<Leader[]>([]);
+  const [teams, setTeams]       = useState<any[]>([]);
   const [search, setSearch]     = useState("");
   const [results, setResults]   = useState<SearchUser[]>([]);
   const [statuses, setStatuses] = useState<Record<string, string>>({});
@@ -73,15 +74,18 @@ export default function LeaderboardPage() {
     (async () => {
       setLoading(true);
       try {
-        const [lbRes, frRes] = await Promise.all([
+        const [lbRes, frRes, tmRes] = await Promise.all([
           fetch("/api/social/leaderboard"),
           fetch("/api/social/friends"),
+          fetch("/api/social/teams"),
         ]);
         const lb  = await lbRes.json();
         const fr  = await frRes.json();
+        const tm  = await tmRes.json();
 
         setGlobal(lb.global  ?? []);
         setFriends(lb.friends ?? []);
+        setTeams(tm.teams ?? []);
 
         // Build status map
         const map: Record<string, string> = {};
@@ -181,11 +185,11 @@ export default function LeaderboardPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 glass rounded-xl border border-border/50">
-        {(["global", "friends"] as const).map((t) => (
+        {(["global", "friends", "teams"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={cn("flex-1 py-2 rounded-lg text-sm font-semibold transition-all capitalize",
               tab === t ? "bg-primary text-white shadow-lg shadow-primary/25" : "text-muted-foreground hover:text-foreground")}>
-            {t === "global" ? "🌍 Global" : "👥 Friends"}
+            {t === "global" ? "🌍 Global" : t === "friends" ? "👥 Friends" : "🛡️ Teams"}
           </button>
         ))}
       </div>
@@ -215,11 +219,11 @@ export default function LeaderboardPage() {
           <div className="p-8 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 rounded-xl shimmer" />)}
           </div>
-        ) : rows.length === 0 ? (
+        ) : (tab === "teams" ? teams.length === 0 : rows.length === 0) ? (
           <div className="py-16 text-center space-y-2">
-            <p className="text-3xl">{tab === "friends" ? "👥" : "🏆"}</p>
+            <p className="text-3xl">{tab === "friends" ? "👥" : tab === "teams" ? "🛡️" : "🏆"}</p>
             <p className="font-semibold text-foreground">
-              {tab === "friends" ? "Search and Add Friends to start competing!" : "No rankings yet"}
+              {tab === "friends" ? "Search and Add Friends to start competing!" : tab === "teams" ? "No teams have been created yet." : "No rankings yet"}
             </p>
             <p className="text-sm text-muted-foreground">Start studying to earn XP and appear here</p>
           </div>
@@ -228,46 +232,80 @@ export default function LeaderboardPage() {
             <thead>
               <tr className="border-b border-border/50 bg-muted/20">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase w-10">#</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">User</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">{tab === "teams" ? "Team" : "User"}</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">XP</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase hidden sm:table-cell">Mastered</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase hidden sm:table-cell">{tab === "teams" ? "Members" : "Mastered"}</th>
                 <th className="text-right px-5 py-3 w-24 hidden sm:table-cell" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border/30">
               <AnimatePresence>
-                {rows.map((user, i) => {
-                  const st = RANK_STYLE[user.rank];
-                  return (
-                    <motion.tr key={user.userId}
-                      initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.04 }}
-                      className="hover:bg-muted/20 transition-colors">
-                      <td className="px-5 py-4">{st ? <span className="text-xl">{st.badge}</span> : <span className="text-muted-foreground font-mono">{user.rank}</span>}</td>
-                      <td className="px-4 py-4">
-                        <a href={`/profile/${user.username}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                          <Avatar name={user.username} size={9} />
-                          <div>
-                            <p className="font-semibold text-foreground">{user.username}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(user.joinedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
-                            </p>
+                {tab === "teams" ? (
+                  teams.map((team, i) => {
+                    const st = RANK_STYLE[i + 1];
+                    return (
+                      <motion.tr key={team.id}
+                        initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="hover:bg-muted/20 transition-colors">
+                        <td className="px-5 py-4">{st ? <span className="text-xl">{st.badge}</span> : <span className="text-muted-foreground font-mono">{i + 1}</span>}</td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                              {team.name[0]?.toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-foreground">{team.name}</p>
+                              <p className="text-xs text-muted-foreground">Led by {team.leader.username}</p>
+                            </div>
                           </div>
-                        </a>
-                      </td>
-                      <td className="px-4 py-4 text-right font-bold">
-                        <span className={st ? st.text : "text-foreground"}>⚡ {user.totalXp.toLocaleString()}</span>
-                      </td>
-                      <td className="px-5 py-4 text-right hidden sm:table-cell">
-                        <span className="text-emerald-400 font-semibold">{user.masteredWords}</span>
-                        <span className="text-xs text-muted-foreground ml-1">words</span>
-                      </td>
-                      <td className="px-4 py-4 text-right hidden sm:table-cell">
-                        <AddFriendBtn userId={user.userId} status={statuses[user.userId] ?? null} onAction={sendRequest} />
-                      </td>
-                    </motion.tr>
-                  );
-                })}
+                        </td>
+                        <td className="px-4 py-4 text-right font-bold">
+                          <span className={st ? st.text : "text-foreground"}>⚡ {team.totalXp.toLocaleString()}</span>
+                        </td>
+                        <td className="px-5 py-4 text-right hidden sm:table-cell">
+                          <span className="text-emerald-400 font-semibold">{team.memberCount}/10</span>
+                          <span className="text-xs text-muted-foreground ml-1">members</span>
+                        </td>
+                        <td className="px-4 py-4 text-right hidden sm:table-cell">
+                        </td>
+                      </motion.tr>
+                    );
+                  })
+                ) : (
+                  rows.map((user, i) => {
+                    const st = RANK_STYLE[user.rank];
+                    return (
+                      <motion.tr key={user.userId}
+                        initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="hover:bg-muted/20 transition-colors">
+                        <td className="px-5 py-4">{st ? <span className="text-xl">{st.badge}</span> : <span className="text-muted-foreground font-mono">{user.rank}</span>}</td>
+                        <td className="px-4 py-4">
+                          <a href={`/profile/${user.username}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                            <Avatar name={user.username} size={9} />
+                            <div>
+                              <p className="font-semibold text-foreground">{user.username}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(user.joinedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                              </p>
+                            </div>
+                          </a>
+                        </td>
+                        <td className="px-4 py-4 text-right font-bold">
+                          <span className={st ? st.text : "text-foreground"}>⚡ {user.totalXp.toLocaleString()}</span>
+                        </td>
+                        <td className="px-5 py-4 text-right hidden sm:table-cell">
+                          <span className="text-emerald-400 font-semibold">{user.masteredWords}</span>
+                          <span className="text-xs text-muted-foreground ml-1">words</span>
+                        </td>
+                        <td className="px-4 py-4 text-right hidden sm:table-cell">
+                          <AddFriendBtn userId={user.userId} status={statuses[user.userId] ?? null} onAction={sendRequest} />
+                        </td>
+                      </motion.tr>
+                    );
+                  })
+                )}
               </AnimatePresence>
             </tbody>
           </table>

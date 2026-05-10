@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { prisma }   from "@/lib/prisma";
 import { cn }       from "@/lib/utils";
 import type { Metadata } from "next";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
 export async function generateMetadata({ params }: { params: { username: string } }): Promise<Metadata> {
   return { title: `${params.username}'s Profile — 4,000 Essential Words` };
@@ -49,6 +51,9 @@ export default async function ProfilePage({ params }: { params: { username: stri
   });
   if (!user) notFound();
 
+  const session = await getServerSession(authOptions);
+  const isOwnProfile = session?.user?.id === user.id;
+
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const xpEvents = await prisma.xpEvent.groupBy({
@@ -83,10 +88,14 @@ export default async function ProfilePage({ params }: { params: { username: stri
       <div className="glass rounded-3xl border border-border/50 p-8 relative overflow-hidden">
         <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
         <div className="relative flex flex-col sm:flex-row items-center gap-6">
-          <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-primary/30 to-violet-500/30 border border-primary/30 flex items-center justify-center text-3xl font-bold shrink-0">
-            {user.username[0].toUpperCase()}
-          </div>
-          <div className="text-center sm:text-left">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt={user.username} className="h-24 w-24 rounded-2xl object-cover border-4 border-background shadow-lg shrink-0" />
+          ) : (
+            <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-primary/30 to-violet-500/30 border-4 border-background shadow-lg flex items-center justify-center text-4xl font-bold shrink-0 text-foreground">
+              {user.username[0].toUpperCase()}
+            </div>
+          )}
+          <div className="text-center sm:text-left flex-1">
             <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start mb-1">
               <h1 className="text-2xl font-bold text-foreground">{user.username}</h1>
               {user.role === "admin" && <span className="text-xs bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded-full">Admin</span>}
@@ -97,6 +106,11 @@ export default async function ProfilePage({ params }: { params: { username: stri
               <span className="text-xs bg-primary/10 border border-primary/20 text-primary px-3 py-1 rounded-full font-semibold">⚡ {xp.toLocaleString()} XP</span>
             </div>
           </div>
+          {isOwnProfile && (
+            <a href="/profile/edit" className="shrink-0 px-4 py-2 bg-muted/50 border border-border/50 text-foreground text-sm font-semibold rounded-xl hover:bg-muted transition-colors">
+              Edit Profile
+            </a>
+          )}
         </div>
       </div>
 

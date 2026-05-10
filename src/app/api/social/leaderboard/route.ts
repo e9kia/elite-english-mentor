@@ -16,7 +16,8 @@ async function getMe() {
 }
 
 async function buildRows(userIds?: string[]) {
-  const where = userIds ? { userId: { in: userIds } } : {};
+  const where: any = userIds ? { userId: { in: userIds } } : {};
+  where.user = { role: { not: "admin" } };
   const rows = await prisma.leaderboardSnapshot.findMany({
     where,
     orderBy: { totalXp: "desc" },

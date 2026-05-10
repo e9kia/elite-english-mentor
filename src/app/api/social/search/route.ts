@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     where: {
       AND: [
         { NOT: { id: meId ?? "" } },
+        { role: { not: "admin" } },
         {
           OR: [
             { username: { contains: q, mode: "insensitive" } },
