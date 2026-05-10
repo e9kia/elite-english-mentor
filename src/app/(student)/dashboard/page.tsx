@@ -415,7 +415,7 @@ export default async function DashboardPage() {
           ))}
         </div>
       </div>
-    </div>
+
 
 
       {/* ── Quick action cards ── */}
