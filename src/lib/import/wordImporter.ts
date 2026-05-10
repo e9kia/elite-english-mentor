@@ -23,6 +23,7 @@ export interface ImportResult {
   errorCount: number;
   errors: any[];
   durationMs: number;
+  message?: string;
 }
 
 export async function importWordsFromBuffer(opts: ImportOptions): Promise<ImportResult> {

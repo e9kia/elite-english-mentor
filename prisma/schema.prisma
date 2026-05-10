@@ -227,6 +227,7 @@ model ImportBatch {
   errorCount    Int      @default(0) @map("error_count")
   errorLog      Json?    @map("error_log")       // array of {row, reason}
   status        String   @default("processing")  // 'processing' | 'done' | 'failed'
+  error         String?                          // failure reason
   createdAt     DateTime @default(now()) @map("created_at")
 
   uploadedBy User   @relation(fields: [uploadedById], references: [id])
