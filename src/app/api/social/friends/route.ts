@@ -6,12 +6,12 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Resolve current user (dev bypass → first admin)
-async function resolveUser(req: NextRequest) {
-  const devId = req.headers.get("x-dev-user-id");
-  if (devId) return devId;
-  const admin = await prisma.user.findFirst({ where: { role: "admin" } });
-  return admin?.id ?? null;
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
+
+async function resolveUser() {
+  const session = await getServerSession(authOptions);
+  return session?.user?.id ?? null;
 }
 
 const USER_SELECT = {
@@ -20,7 +20,7 @@ const USER_SELECT = {
 } as const;
 
 export async function GET(req: NextRequest) {
-  const userId = await resolveUser(req);
+  const userId = await resolveUser();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const [accepted, pending, incoming] = await Promise.all([
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const userId = await resolveUser(req);
+  const userId = await resolveUser();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { targetUserId } = await req.json().catch(() => ({}));

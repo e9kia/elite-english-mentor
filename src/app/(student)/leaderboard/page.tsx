@@ -40,7 +40,11 @@ function AddFriendBtn({ userId, status, onAction }: {
   onAction: (id: string, action: "add") => Promise<void>;
 }) {
   const [pending, start] = useTransition();
-  if (status === "accepted") return <span className="text-xs text-emerald-400 px-2">✓ Friends</span>;
+  if (status === "accepted") return (
+    <a href={`/compete/challenge/${userId}`} className="text-xs px-4 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500/20 font-bold flex items-center gap-1.5 transition-colors group">
+      <span className="group-hover:scale-110 transition-transform">⚔️</span> Challenge
+    </a>
+  );
   if (status === "pending")  return <span className="text-xs text-muted-foreground px-2">Pending…</span>;
   return (
     <button
@@ -215,7 +219,7 @@ export default function LeaderboardPage() {
           <div className="py-16 text-center space-y-2">
             <p className="text-3xl">{tab === "friends" ? "👥" : "🏆"}</p>
             <p className="font-semibold text-foreground">
-              {tab === "friends" ? "No friends yet — search above to add some!" : "No rankings yet"}
+              {tab === "friends" ? "Search and Add Friends to start competing!" : "No rankings yet"}
             </p>
             <p className="text-sm text-muted-foreground">Start studying to earn XP and appear here</p>
           </div>

@@ -5,6 +5,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
+
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim();
   if (!q || q.length < 2) {
@@ -12,8 +15,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Get current user for exclusion + friendship status overlay
-  const admin = await prisma.user.findFirst({ where: { role: "admin" } });
-  const meId  = admin?.id;
+  const session = await getServerSession(authOptions);
+  const meId  = session?.user?.id;
 
   const users = await prisma.user.findMany({
     where: {

@@ -7,9 +7,12 @@ import { prisma } from "@/lib/prisma";
 
 export const revalidate = 60;
 
-async function getMe(req: NextRequest) {
-  const admin = await prisma.user.findFirst({ where: { role: "admin" } });
-  return admin?.id ?? null;
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
+
+async function getMe() {
+  const session = await getServerSession(authOptions);
+  return session?.user?.id ?? null;
 }
 
 async function buildRows(userIds?: string[]) {
@@ -41,7 +44,7 @@ async function buildRows(userIds?: string[]) {
 }
 
 export async function GET(req: NextRequest) {
-  const meId = await getMe(req);
+  const meId = await getMe();
 
   // Friends list for the "Friends" tab
   let friendIds: string[] = [];
