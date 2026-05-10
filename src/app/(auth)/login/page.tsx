@@ -25,7 +25,15 @@ export default function LoginPage() {
       if (result?.error) {
         setError("Invalid email or password. Please try again.");
       } else {
-        router.push("/dashboard");
+        // Fetch session to check role
+        const res = await fetch("/api/auth/session");
+        const session = await res.json();
+        
+        if (session?.user?.role === "admin") {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard");
+        }
         router.refresh();
       }
     } catch {

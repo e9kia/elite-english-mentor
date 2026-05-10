@@ -7,16 +7,13 @@ export async function middleware(req: NextRequest) {
 
   // 1. Restrict /admin to admins only
   if (req.nextUrl.pathname.startsWith("/admin")) {
-    // If it's the preview page, allow admins
-    if (req.nextUrl.pathname.startsWith("/admin/preview")) {
-      if (!token || token.role !== "admin") return NextResponse.redirect(new URL("/dashboard", req.url));
-    } else {
-      if (!token || token.role !== "admin") return NextResponse.redirect(new URL("/dashboard", req.url));
+    if (!token || token.role !== "admin") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
 
-  // 2. Restrict /study from admins (redirect to preview)
-  if (req.nextUrl.pathname.startsWith("/study")) {
+  // 2. Restrict /study and /compete from admins (redirect to preview)
+  if (req.nextUrl.pathname.startsWith("/study") || req.nextUrl.pathname.startsWith("/compete")) {
     if (token?.role === "admin") {
       return NextResponse.redirect(new URL("/admin/preview", req.url));
     }
@@ -26,5 +23,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/admin", "/study/:path*", "/study"],
+  matcher: ["/admin/:path*", "/admin", "/study/:path*", "/study", "/compete/:path*", "/compete"],
 };
