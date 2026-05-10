@@ -135,6 +135,8 @@ export default function AdminUploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<ParsedWord[]>([]);
   const [upsert, setUpsert] = useState(false);
+  const [wipe, setWipe] = useState(false);
+  const [useAI, setUseAI] = useState(false);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -187,6 +189,8 @@ export default function AdminUploadPage() {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("upsertDuplicates", String(upsert));
+    fd.append("wipeData", String(wipe));
+    fd.append("useAI", String(useAI));
 
     try {
       setProgress(40);
@@ -230,26 +234,25 @@ export default function AdminUploadPage() {
           </p>
         </div>
 
-        {/* Upsert toggle */}
-        <label className="flex items-center gap-2 cursor-pointer select-none glass px-4 py-2.5 rounded-xl">
-          <div
-            className={cn(
-              "relative h-5 w-9 rounded-full transition-colors duration-200",
-              upsert ? "bg-primary" : "bg-muted"
-            )}
-            onClick={() => setUpsert(!upsert)}
-          >
-            <span
-              className={cn(
-                "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200",
-                upsert ? "translate-x-4" : "translate-x-0"
-              )}
-            />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">
-            Update duplicates
-          </span>
-        </label>
+        <div className="flex items-center gap-4">
+          {/* Upsert toggle */}
+          <label className="flex items-center gap-2 cursor-pointer select-none glass px-4 py-2.5 rounded-xl transition-all hover:bg-muted/50">
+            <input type="checkbox" checked={upsert} onChange={(e) => setUpsert(e.target.checked)} className="accent-primary" />
+            <span className="text-xs font-medium text-muted-foreground">Update duplicates</span>
+          </label>
+
+          {/* Wipe toggle */}
+          <label className="flex items-center gap-2 cursor-pointer select-none glass px-4 py-2.5 rounded-xl transition-all hover:bg-rose-500/5">
+            <input type="checkbox" checked={wipe} onChange={(e) => setWipe(e.target.checked)} className="accent-rose-500" />
+            <span className="text-xs font-medium text-rose-500/80">Wipe Data First</span>
+          </label>
+
+          {/* AI toggle */}
+          <label className="flex items-center gap-2 cursor-pointer select-none glass px-4 py-2.5 rounded-xl transition-all hover:bg-primary/5">
+            <input type="checkbox" checked={useAI} onChange={(e) => setUseAI(e.target.checked)} className="accent-primary" />
+            <span className="text-xs font-medium text-primary">AI Auto-Translate</span>
+          </label>
+        </div>
       </div>
 
       {/* ── Dropzone ── */}

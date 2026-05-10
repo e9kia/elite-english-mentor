@@ -30,7 +30,11 @@ export interface ImportOptions {
   buffer: Buffer;
   /** If true, duplicate words in the same unit are updated (not skipped) */
   upsertDuplicates?: boolean;
+  wipeData?: boolean; // Nuclear Reset
+  useAI?: boolean;   // AI Auto-translate
 }
+
+import { translateToArabic, batchTranslateToArabic } from "../gemini";
 
 export interface ImportResult {
   batchId: string;
@@ -55,6 +59,12 @@ interface RowError {
 export async function importWordsFromBuffer(opts: ImportOptions): Promise<ImportResult> {
   const start = Date.now();
 
+  // 1. NUCLEAR RESET: Wipe data if requested
+  if (opts.wipeData) {
+    console.warn("[IMPORT] NUCLEAR RESET: Wiping all words...");
+    await prisma.word.deleteMany({});
+  }
+
   // ── 1. Create ImportBatch record ─────────────────────────────────
   const batch = await prisma.importBatch.create({
     data: {
@@ -78,22 +88,52 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
       throw new Error("File contains no data rows. Check that row 1 is the header.");
     }
 
-    // ── 3. Build Level/Unit lookup cache from DB ──────────────────
-    const unitCache = await buildUnitCache();
+    // 2. PRE-PROCESS ENTITIES: Ensure all Levels and Units exist
+    // This avoids race conditions in batch inserts
+    const entityMap = new Map<string, number>(); // "level-unit" -> unitId
+    
+    // Extract unique levels and units from rows
+    const uniqueUnits = new Set<string>();
+    rawRows.forEach((row: any) => {
+      const normalised = normaliseRow(row);
+      const lvl = parseInt(String(normalised.level));
+      const unt = parseInt(String(normalised.unit));
+      if (!isNaN(lvl) && !isNaN(unt)) uniqueUnits.add(`${lvl}-${unt}`);
+    });
 
-    // ── 4. Validate and group rows into Prisma upsert payloads ────
-    const toUpsert: Array<{
-      unitId: number;
-      word: string;
-      type: WordType;
-      definition: string;
-      example: string;
-      phonetic: string | null;
-      difficulty: number;
-      importBatchId: string;
-      createdById: string;
-    }> = [];
+    for (const key of Array.from(uniqueUnits)) {
+      const [lvlNum, untNum] = key.split("-").map(Number);
+      const level = await prisma.level.upsert({
+        where: { number: lvlNum },
+        update: {},
+        create: { number: lvlNum, title: `Level ${lvlNum}` },
+      });
+      const unit = await prisma.unit.upsert({
+        where: { levelId_number: { levelId: level.id, number: untNum } },
+        update: {},
+        create: { levelId: level.id, number: untNum, title: `Unit ${untNum}` },
+      });
+      entityMap.set(key, unit.id);
+    }
 
+    // 3. AI TRANSLATION: Collect words needing translation
+    const wordsToTranslate: string[] = [];
+    if (opts.useAI) {
+      rawRows.forEach((row: any) => {
+        const normalised = normaliseRow(row);
+        const word = String(normalised.word || "").trim();
+        const definition = String(normalised.definition || "").trim();
+        // If definition is empty or contains weird characters (basic check)
+        if (word && (!definition || /[\uFFFD]/.test(definition))) {
+          wordsToTranslate.push(word);
+        }
+      });
+    }
+
+    const aiTranslations = opts.useAI ? await batchTranslateToArabic(wordsToTranslate) : {};
+
+    // 4. PREPARE BATCH UPSERT
+    const wordsToUpsert = [];
     for (let i = 0; i < rawRows.length; i++) {
       const rowNum = i + 2; // +1 for header, +1 for 1-indexed display
       const raw = rawRows[i];
@@ -117,28 +157,28 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
 
       const data: WordRow = parsed.data;
 
-      // FORCED UPSERT (No more db:seed error)
-      const level = await prisma.level.upsert({
-        where: { number: data.level },
-        update: {},
-        create: { number: data.level, title: `Level ${data.level}` },
-      });
+      // Resolve unit ID from entity map
+      const unitId = entityMap.get(`${data.level}-${data.unit}`);
+      if (!unitId) {
+        errors.push({
+          row: rowNum,
+          word: data.word,
+          reason: `Failed to resolve Level ${data.level} Unit ${data.unit}.`,
+        });
+        continue;
+      }
 
-      const unit = await prisma.unit.upsert({
-        where: {
-          levelId_number: { levelId: level.id, number: data.unit },
-        },
-        update: {},
-        create: { levelId: level.id, number: data.unit, title: `Unit ${data.unit}` },
-      });
+      // Apply AI translation if needed
+      let finalDefinition = data.definition;
+      if (opts.useAI && (!finalDefinition || /[\uFFFD]/.test(finalDefinition))) {
+        finalDefinition = aiTranslations[data.word] || finalDefinition;
+      }
 
-      const unitId = unit.id;
-
-      toUpsert.push({
+      wordsToUpsert.push({
         unitId,
         word: data.word,
         type: data.type as WordType,
-        definition: data.definition,
+        definition: finalDefinition,
         example: data.example,
         phonetic: data.phonetic ?? null,
         difficulty: data.difficulty,
@@ -147,10 +187,10 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
       });
     }
 
-    // ── 5. Batch upsert in chunks of 100 (avoid query size limits) ─
-    const CHUNK_SIZE = 100;
-    for (let i = 0; i < toUpsert.length; i += CHUNK_SIZE) {
-      const chunk = toUpsert.slice(i, i + CHUNK_SIZE);
+    // ── 5. Batch upsert in chunks (atomic hits for speed) ─
+    const CHUNK_SIZE = 50; 
+    for (let i = 0; i < wordsToUpsert.length; i += CHUNK_SIZE) {
+      const chunk = wordsToUpsert.slice(i, i + CHUNK_SIZE);
 
       await prisma.$transaction(
         chunk.map((row) =>
@@ -167,13 +207,11 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
                 difficulty: row.difficulty,
                 importBatchId: row.importBatchId,
               }
-              : {}, // no-op update = skip duplicates silently
+              : {}, 
           })
         )
       );
 
-      // Count actual inserts vs updates by querying batch words
-      // (simplified: just count upserted rows)
       importedCount += chunk.length;
     }
 

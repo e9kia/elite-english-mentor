@@ -115,6 +115,8 @@ export async function POST(req: NextRequest) {
       filename: file.name,
       buffer,
       upsertDuplicates: formData.get("upsertDuplicates") === "true",
+      wipeData: formData.get("wipeData") === "true",
+      useAI: formData.get("useAI") === "true",
     });
 
     return NextResponse.json({
