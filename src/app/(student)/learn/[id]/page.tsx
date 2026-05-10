@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function LearningPage({ params }: { params: { id: string } }) {
+export default async function LearnPage({ params }: { params: { id: string } }) {
   const unitId = parseInt(params.id);
   console.log(`[LEARN] Accessing Unit ID: ${unitId}`);
 
