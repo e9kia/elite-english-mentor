@@ -205,7 +205,7 @@ model Word {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   unit                  Unit                       @relation(fields: [unitId], references: [id])
-  createdBy             User?                      @relation("WordCreator", fields: [createdById], references: [id])
+  createdBy             User?                      @relation("WordCreator", fields: [createdById], references: [id], onDelete: Cascade)
   importBatch           ImportBatch?               @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
   wordMastery           UserWordMastery[]
   pronunciationAttempts UserPronunciationAttempt[]
@@ -354,9 +354,9 @@ model Duel {
   finishedAt      DateTime?  @map("finished_at")
   createdAt       DateTime   @default(now()) @map("created_at")
 
-  host         User              @relation("DuelHost", fields: [hostUserId], references: [id])
+  host         User              @relation("DuelHost", fields: [hostUserId], references: [id], onDelete: Cascade)
   unit         Unit              @relation(fields: [unitId], references: [id])
-  winner       User?             @relation("DuelWinner", fields: [winnerId], references: [id])
+  winner       User?             @relation("DuelWinner", fields: [winnerId], references: [id], onDelete: Cascade)
   participants DuelParticipant[]
   answers      DuelAnswer[]
 
@@ -375,7 +375,7 @@ model DuelParticipant {
   joinedAt DateTime @default(now()) @map("joined_at")
 
   duel Duel @relation(fields: [duelId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([duelId, userId])
   @@index([duelId])
@@ -393,7 +393,7 @@ model DuelAnswer {
   answeredAt  DateTime @default(now()) @map("answered_at")
 
   duel Duel @relation(fields: [duelId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   word Word @relation(fields: [wordId], references: [id])
 
   @@index([duelId, userId])
@@ -496,7 +496,7 @@ model Team {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  leader  User   @relation("TeamLeader", fields: [leaderId], references: [id])
+  leader  User   @relation("TeamLeader", fields: [leaderId], references: [id], onDelete: Cascade)
   members User[] @relation("TeamMembers")
 
   @@index([leaderId])
