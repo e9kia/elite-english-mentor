@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     const batch = await prisma.importBatch.create({
       data: {
         filename: file.name,
-        uploadedById: session.user.id,
+        userId: session.user.id,
         totalRows: rows.length,
         status: "processing",
       },
