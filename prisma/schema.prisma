@@ -44,16 +44,16 @@ enum UnitStatus {
 
 /// Lifecycle of a competition room
 enum DuelStatus {
-  waiting   // room open, waiting for players
-  active    // quiz in progress
-  finished  // all questions answered
+  waiting // room open, waiting for players
+  active // quiz in progress
+  finished // all questions answered
   cancelled // host left before start
 }
 
 /// Room format
 enum DuelType {
   one_v_one // exactly 2 players
-  group     // 3–6 players
+  group // 3–6 players
 }
 
 enum QuizType {
@@ -91,38 +91,38 @@ enum FriendshipStatus {
 // ─────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  username     String   @unique
-  passwordHash String?  @map("password_hash")   // null for OAuth-only users
-  avatarUrl    String?  @map("avatar_url")
-  role         Role     @default(student)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  lastSeen     DateTime? @map("last_seen")              // tracks online status
+  id           String    @id @default(uuid())
+  email        String    @unique
+  username     String    @unique
+  passwordHash String?   @map("password_hash") // null for OAuth-only users
+  avatarUrl    String?   @map("avatar_url")
+  role         Role      @default(student)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastSeen     DateTime? @map("last_seen") // tracks online status
 
   // ── Relations ──
-  oauthAccounts         OAuthAccount[]
-  sessions              Session[]
-  unitProgress          UserUnitProgress[]
-  wordMastery           UserWordMastery[]
-  pronunciationAttempts UserPronunciationAttempt[]
-  tutorSessions         UserTutorSession[]
-  quizAttempts          UserQuizAttempt[]
-  hostedDuels           Duel[]              @relation("DuelHost")
-  wonDuels              Duel[]              @relation("DuelWinner")
-  duelParticipations    DuelParticipant[]
-  duelAnswers           DuelAnswer[]
-  leaderboard           LeaderboardSnapshot?
-  xpEvents              XpEvent[]
-  userBadges            UserBadge[]
-  wordsCreated          Word[]              @relation("WordCreator")
-  importBatches         ImportBatch[]
-  sentFriendRequests    Friendship[]        @relation("FriendRequester")
-  receivedFriendRequests Friendship[]       @relation("FriendAddressee")
-  ledTeams              Team[]              @relation("TeamLeader")
-  team                  Team?               @relation("TeamMembers", fields: [teamId], references: [id])
-  teamId                String?             @map("team_id")
+  oauthAccounts          OAuthAccount[]
+  sessions               Session[]
+  unitProgress           UserUnitProgress[]
+  wordMastery            UserWordMastery[]
+  pronunciationAttempts  UserPronunciationAttempt[]
+  tutorSessions          UserTutorSession[]
+  quizAttempts           UserQuizAttempt[]
+  hostedDuels            Duel[]                     @relation("DuelHost")
+  wonDuels               Duel[]                     @relation("DuelWinner")
+  duelParticipations     DuelParticipant[]
+  duelAnswers            DuelAnswer[]
+  leaderboard            LeaderboardSnapshot?
+  xpEvents               XpEvent[]
+  userBadges             UserBadge[]
+  wordsCreated           Word[]                     @relation("WordCreator")
+  importBatches          ImportBatch[]
+  sentFriendRequests     Friendship[]               @relation("FriendRequester")
+  receivedFriendRequests Friendship[]               @relation("FriendAddressee")
+  ledTeams               Team[]                     @relation("TeamLeader")
+  team                   Team?                      @relation("TeamMembers", fields: [teamId], references: [id])
+  teamId                 String?                    @map("team_id")
 
   @@map("users")
 }
@@ -157,9 +157,9 @@ model Session {
 // ─────────────────────────────────────────────
 
 model Level {
-  id          Int    @id @default(autoincrement())
-  number      Int    @unique               // 1–6
-  title       String                       // e.g. "Level 1 — Beginner"
+  id          Int     @id @default(autoincrement())
+  number      Int     @unique // 1–6
+  title       String // e.g. "Level 1 — Beginner"
   description String?
   colorTheme  String? @map("color_theme") // e.g. "#4f46e5"
 
@@ -171,8 +171,8 @@ model Level {
 model Unit {
   id      Int    @id @default(autoincrement())
   levelId Int    @map("level_id")
-  number  Int                               // 1–30
-  title   String                            // e.g. "Unit 1 — Family"
+  number  Int // 1–30
+  title   String // e.g. "Unit 1 — Family"
 
   level         Level              @relation(fields: [levelId], references: [id])
   words         Word[]
@@ -181,22 +181,22 @@ model Unit {
   quizAttempts  UserQuizAttempt[]
   duels         Duel[]
 
-  @@unique([levelId, number])              // prevents duplicate unit numbers per level
+  @@unique([levelId, number]) // prevents duplicate unit numbers per level
   @@index([levelId])
   @@map("units")
 }
 
 model Word {
-  id            String   @id @default(uuid())
-  unitId        Int      @map("unit_id")
-  word          String
-  type          WordType
-  definition    String
-  example       String
-  phonetic      String?                    // IPA string, e.g. /ˈfæmɪli/
-  audioUrl      String?  @map("audio_url")// TTS-generated audio file URL
-  imageUrl      String?  @map("image_url")
-  difficulty    Int      @default(1)       // 1–5 internal scoring
+  id         String   @id @default(uuid())
+  unitId     Int      @map("unit_id")
+  word       String
+  type       WordType
+  definition String
+  example    String
+  phonetic   String? // IPA string, e.g. /ˈfæmɪli/
+  audioUrl   String?  @map("audio_url") // TTS-generated audio file URL
+  imageUrl   String?  @map("image_url")
+  difficulty Int      @default(1) // 1–5 internal scoring
 
   // ── Import tracking ──
   importBatchId String?  @map("import_batch_id") // links to ImportBatch.id
@@ -206,33 +206,35 @@ model Word {
 
   unit                  Unit                       @relation(fields: [unitId], references: [id])
   createdBy             User?                      @relation("WordCreator", fields: [createdById], references: [id])
-  importBatch           ImportBatch?               @relation(fields: [importBatchId], references: [id])
+  importBatch           ImportBatch?               @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
   wordMastery           UserWordMastery[]
   pronunciationAttempts UserPronunciationAttempt[]
   duelAnswers           DuelAnswer[]
 
-  @@unique([unitId, word])               // no duplicate words in the same unit
-  @@index([word])                        // fast word lookups
-  @@index([unitId])                      // fast unit-level queries
+  @@unique([unitId, word]) // no duplicate words in the same unit
+  @@index([word]) // fast word lookups
+  @@index([unitId]) // fast unit-level queries
   @@map("words")
 }
 
 /// Tracks each bulk import session for auditability
 model ImportBatch {
   id            String   @id @default(uuid())
-  filename      String                           // original uploaded filename
-  uploadedById  String   @map("uploaded_by")
+  filename      String // original uploaded filename
   totalRows     Int      @map("total_rows")
   importedCount Int      @default(0) @map("imported_count")
   skippedCount  Int      @default(0) @map("skipped_count")
   errorCount    Int      @default(0) @map("error_count")
-  errorLog      Json?    @map("error_log")       // array of {row, reason}
-  status        String   @default("processing")  // 'processing' | 'done' | 'failed'
-  error         String?                          // failure reason
+  errorLog      Json?    @map("error_log") // array of {row, reason}
+  status        String   @default("processing") // 'processing' | 'done' | 'failed'
+  error         String? // failure reason
   createdAt     DateTime @default(now()) @map("created_at")
 
-  uploadedBy User   @relation(fields: [uploadedById], references: [id])
-  words      Word[]
+  // Relations
+  userId     String @map("uploaded_by")
+  uploadedBy User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  words Word[]
 
   @@map("import_batches")
 }
@@ -246,7 +248,7 @@ model UserUnitProgress {
   userId      String     @map("user_id")
   unitId      Int        @map("unit_id")
   status      UnitStatus @default(not_started)
-  score       Int        @default(0)         // best score 0–100
+  score       Int        @default(0) // best score 0–100
   startedAt   DateTime?  @map("started_at")
   completedAt DateTime?  @map("completed_at")
 
@@ -268,7 +270,7 @@ model UserWordMastery {
   timesCorrect Int       @default(0) @map("times_correct")
   timesWrong   Int       @default(0) @map("times_wrong")
   easeFactor   Float     @default(2.5) @map("ease_factor") // SM-2 ease factor
-  interval     Int       @default(0)  // days until next review
+  interval     Int       @default(0) // days until next review
   lastSeenAt   DateTime? @map("last_seen_at")
   nextReviewAt DateTime? @map("next_review_at")
 
@@ -284,10 +286,10 @@ model UserPronunciationAttempt {
   id          String   @id @default(uuid())
   userId      String   @map("user_id")
   wordId      String   @map("word_id")
-  audioUrl    String?  @map("audio_url")   // stored recording
-  transcript  String?                       // Whisper transcript
-  score       Float?                        // 0.0–1.0 similarity score
-  feedback    String?                       // AI-generated feedback
+  audioUrl    String?  @map("audio_url") // stored recording
+  transcript  String? // Whisper transcript
+  score       Float? // 0.0–1.0 similarity score
+  feedback    String? // AI-generated feedback
   attemptedAt DateTime @default(now()) @map("attempted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -338,23 +340,23 @@ model UserQuizAttempt {
 
 model Duel {
   id              String     @id @default(uuid())
-  roomCode        String     @unique @map("room_code")  // 6-char shareable code
+  roomCode        String     @unique @map("room_code") // 6-char shareable code
   hostUserId      String     @map("host_user_id")
   unitId          Int        @map("unit_id")
   duelType        DuelType   @default(one_v_one) @map("duel_type")
   /// 2 for 1v1 · 3–6 for group — enforced in application layer
   maxParticipants Int        @default(2) @map("max_participants")
   questionCount   Int        @default(10) @map("question_count")
-  timeLimitSec    Int        @default(30) @map("time_limit_sec")  // per question
+  timeLimitSec    Int        @default(30) @map("time_limit_sec") // per question
   status          DuelStatus @default(waiting)
-  winnerId        String?    @map("winner_id")   // null for group (use rank in DuelParticipant)
+  winnerId        String?    @map("winner_id") // null for group (use rank in DuelParticipant)
   startedAt       DateTime?  @map("started_at")
   finishedAt      DateTime?  @map("finished_at")
   createdAt       DateTime   @default(now()) @map("created_at")
 
-  host         User            @relation("DuelHost", fields: [hostUserId], references: [id])
-  unit         Unit            @relation(fields: [unitId], references: [id])
-  winner       User?           @relation("DuelWinner", fields: [winnerId], references: [id])
+  host         User              @relation("DuelHost", fields: [hostUserId], references: [id])
+  unit         Unit              @relation(fields: [unitId], references: [id])
+  winner       User?             @relation("DuelWinner", fields: [winnerId], references: [id])
   participants DuelParticipant[]
   answers      DuelAnswer[]
 
@@ -369,7 +371,7 @@ model DuelParticipant {
   userId   String   @map("user_id")
   score    Int      @default(0)
   isReady  Boolean  @default(false) @map("is_ready")
-  rank     Int?     // final rank: 1st, 2nd, 3rd... (populated when duel finishes)
+  rank     Int? // final rank: 1st, 2nd, 3rd... (populated when duel finishes)
   joinedAt DateTime @default(now()) @map("joined_at")
 
   duel Duel @relation(fields: [duelId], references: [id], onDelete: Cascade)
@@ -387,7 +389,7 @@ model DuelAnswer {
   wordId      String   @map("word_id")
   answerGiven String   @map("answer_given")
   isCorrect   Boolean  @map("is_correct")
-  timeTakenMs Int?     @map("time_taken_ms")  // speed affects score in competitive mode
+  timeTakenMs Int?     @map("time_taken_ms") // speed affects score in competitive mode
   answeredAt  DateTime @default(now()) @map("answered_at")
 
   duel Duel @relation(fields: [duelId], references: [id], onDelete: Cascade)
@@ -405,7 +407,7 @@ model LeaderboardSnapshot {
   totalXp     Int      @default(0) @map("total_xp")
   duelsWon    Int      @default(0) @map("duels_won")
   duelsPlayed Int      @default(0) @map("duels_played")
-  winRate     Float    @default(0) @map("win_rate")      // cached duelsWon/duelsPlayed
+  winRate     Float    @default(0) @map("win_rate") // cached duelsWon/duelsPlayed
   streakDays  Int      @default(0) @map("streak_days")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
