@@ -15,7 +15,7 @@ async function resolveUser() {
 }
 
 const USER_SELECT = {
-  id: true, username: true, avatarUrl: true, role: true,
+  id: true, username: true, avatarUrl: true, role: true, lastSeen: true,
   leaderboard: { select: { totalXp: true, streakDays: true } },
 } as const;
 

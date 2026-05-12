@@ -8,17 +8,19 @@ import { authOptions } from "@/lib/auth";
 import Link from "next/link";
 
 export async function generateMetadata({ params }: { params: { username: string } }): Promise<Metadata> {
-  return { title: `${params.username}'s Profile — 4,000 Essential Words` };
+  return { title: `${params.username}'s Profile — Elite English Mentor` };
 }
 
 function StatCard({ label, value, icon, color = "text-foreground" }: {
   label: string; value: string | number; icon: string; color?: string;
 }) {
   return (
-    <div className="glass rounded-2xl border border-border/50 p-5 flex flex-col gap-2">
-      <span className="text-2xl">{icon}</span>
-      <p className={cn("text-2xl font-bold", color)}>{value}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <div className="glass rounded-[2rem] border border-border/50 p-6 flex flex-col gap-3 hover:border-border/80 transition-colors">
+      <div className="flex items-center justify-between">
+        <span className="text-3xl">{icon}</span>
+        <span className={cn("text-3xl font-black tabular-nums", color)}>{value}</span>
+      </div>
+      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{label}</p>
     </div>
   );
 }
@@ -26,13 +28,13 @@ function StatCard({ label, value, icon, color = "text-foreground" }: {
 function ActivityGrid({ days }: { days: { date: string; xp: number }[] }) {
   const max = Math.max(...days.map((d) => d.xp), 1);
   return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">30-Day Activity</p>
+    <div className="glass rounded-[2rem] border border-border/50 p-6">
+      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-4">30-Day Activity</p>
       <div className="flex gap-1 flex-wrap">
         {days.map((d, i) => (
           <div key={i} title={`${d.date}: ${d.xp} XP`}
-            className="h-5 w-5 rounded-sm bg-primary transition-colors"
-            style={{ opacity: d.xp === 0 ? 0.1 : 0.25 + (d.xp / max) * 0.75 }} />
+            className="h-5 w-5 rounded-md bg-primary transition-all hover:scale-125"
+            style={{ opacity: d.xp === 0 ? 0.08 : 0.2 + (d.xp / max) * 0.8 }} />
         ))}
       </div>
     </div>
@@ -43,8 +45,8 @@ export default async function ProfilePage({ params }: { params: { username: stri
   const user = await prisma.user.findUnique({
     where: { username: params.username },
     select: {
-      id: true, username: true, avatarUrl: true, createdAt: true, role: true,
-      team: { select: { name: true } },
+      id: true, username: true, avatarUrl: true, createdAt: true, role: true, lastSeen: true,
+      team: { select: { name: true, id: true } },
       leaderboard: true,
       userBadges: { include: { badge: true }, orderBy: { earnedAt: "asc" } },
       wordMastery: { select: { masteryLevel: true } },
@@ -55,18 +57,20 @@ export default async function ProfilePage({ params }: { params: { username: stri
   const session = await getServerSession(authOptions);
   const isOwnProfile = session?.user?.id === user.id;
 
+  // --- Fix: XP Activity Grid ---
+  // Use findMany instead of buggy groupBy on DateTime
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const xpEvents = await prisma.xpEvent.groupBy({
-    by: ["createdAt"],
-    _sum: { xpEarned: true },
+  const xpEvents = await prisma.xpEvent.findMany({
     where: { userId: user.id, createdAt: { gte: thirtyDaysAgo } },
+    select: { xpEarned: true, createdAt: true },
   });
 
+  // Group manually by date string
   const dayMap: Record<string, number> = {};
   xpEvents.forEach((e) => {
     const key = new Date(e.createdAt).toDateString();
-    dayMap[key] = (dayMap[key] ?? 0) + (e._sum.xpEarned ?? 0);
+    dayMap[key] = (dayMap[key] ?? 0) + e.xpEarned;
   });
 
   const days = Array.from({ length: 30 }, (_, i) => {
@@ -81,32 +85,42 @@ export default async function ProfilePage({ params }: { params: { username: stri
   const learning = user.wordMastery.filter((w) => w.masteryLevel === 1).length;
   const total    = user.wordMastery.length;
 
+  const isOnline = user.lastSeen && (Date.now() - new Date(user.lastSeen).getTime() < 5 * 60 * 1000);
+
   const BADGE_EMOJI: Record<string, string> = { "First Word": "🌱", "Word Explorer": "🗺️", "Vocabulary Master": "👑", default: "🏅" };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-10 animate-fade-in py-6">
-      {/* Header */}
-      <div className="glass rounded-[2.5rem] border border-border/50 p-10 relative overflow-hidden shadow-2xl">
-        <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-6">
+      {/* Hero Card */}
+      <div className="glass rounded-[3rem] border border-border/50 p-10 relative overflow-hidden shadow-2xl">
+        <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-primary/10 blur-[80px] pointer-events-none" />
         <div className="relative flex flex-col sm:flex-row items-center gap-8">
-          {user.avatarUrl ? (
-            <img src={user.avatarUrl} alt={user.username} className="h-28 w-28 rounded-3xl object-cover border-4 border-background shadow-xl shrink-0" />
-          ) : (
-            <div className="h-28 w-28 rounded-3xl bg-gradient-to-br from-primary/30 to-violet-500/30 border-4 border-background shadow-xl flex items-center justify-center text-5xl font-black shrink-0 text-foreground">
-              {user.username[0].toUpperCase()}
-            </div>
-          )}
+          <div className="relative">
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt={user.username} className="h-28 w-28 rounded-[2rem] object-cover border-4 border-background shadow-xl shrink-0" />
+            ) : (
+              <div className="h-28 w-28 rounded-[2rem] bg-gradient-to-br from-primary/30 to-violet-500/30 border-4 border-background shadow-xl flex items-center justify-center text-5xl font-black shrink-0 text-foreground">
+                {user.username[0].toUpperCase()}
+              </div>
+            )}
+            <span className={cn(
+              "absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-[3px] border-background",
+              isOnline ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/30"
+            )} />
+          </div>
           <div className="text-center sm:text-left flex-1">
             <div className="flex flex-wrap items-center gap-3 justify-center sm:justify-start mb-2">
               <h1 className="text-3xl font-black text-foreground tracking-tight">{user.username}</h1>
               {user.role === "admin" && <span className="text-[10px] font-black uppercase tracking-widest bg-rose-500 text-white px-3 py-1 rounded-full">Admin</span>}
               {user.team && (
                 <span className="text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-full">
-                  🛡️ Team {user.team.name}
+                  🛡️ {user.team.name}
                 </span>
               )}
             </div>
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Member since {new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              {isOnline ? "🟢 Online now" : `Member since ${new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`}
+            </p>
             <div className="flex flex-wrap gap-3 mt-5 justify-center sm:justify-start">
               {streak > 0 && <span className="text-xs bg-amber-500 text-white px-4 py-1.5 rounded-xl font-bold shadow-lg shadow-amber-500/20">🔥 {streak} Day Streak</span>}
               <span className="text-xs bg-primary text-white px-4 py-1.5 rounded-xl font-bold shadow-lg shadow-primary/20">⚡ {xp.toLocaleString()} XP</span>
@@ -120,63 +134,70 @@ export default async function ProfilePage({ params }: { params: { username: stri
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Bento Grid Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard label="Total XP"   value={xp.toLocaleString()} icon="⚡" color="text-amber-400" />
         <StatCard label="Words Seen" value={total}   icon="👁️" />
         <StatCard label="Mastered"   value={mastered} icon="🎓" color="text-emerald-400" />
         <StatCard label="Day Streak" value={`${streak}d`} icon="🔥" color="text-orange-400" />
       </div>
 
-      {/* Mastery bars */}
+      {/* Mastery Breakdown */}
       {total > 0 && (
-        <div className="glass rounded-2xl border border-border/50 p-6 space-y-4">
-          <h2 className="font-bold text-foreground">Word Mastery</h2>
-          {[["Learning", learning, "bg-amber-500"], ["Familiar", familiar, "bg-blue-500"], ["Mastered", mastered, "bg-emerald-500"]].map(([l, c, bg]) => (
-            <div key={l as string} className="space-y-1.5">
-              <div className="flex justify-between text-xs text-muted-foreground"><span>{l}</span><span>{c} words</span></div>
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div className={cn("h-full rounded-full", bg as string)} style={{ width: `${Math.round(((c as number) / total) * 100)}%` }} />
+        <div className="glass rounded-[2rem] border border-border/50 p-8 space-y-5">
+          <h2 className="text-lg font-black text-foreground">Word Mastery Breakdown</h2>
+          {([
+            ["Learning", learning, "bg-amber-500", "text-amber-500"],
+            ["Familiar", familiar, "bg-blue-500", "text-blue-500"],
+            ["Mastered", mastered, "bg-emerald-500", "text-emerald-500"],
+          ] as const).map(([label, count, bg, textColor]) => (
+            <div key={label} className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className={cn("font-bold", textColor)}>{label}</span>
+                <span className="text-muted-foreground font-bold">{count} / {total}</span>
+              </div>
+              <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                <div className={cn("h-full rounded-full transition-all duration-1000", bg)} style={{ width: `${Math.round((count / total) * 100)}%` }} />
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Activity */}
-      <div className="glass rounded-2xl border border-border/50 p-6"><ActivityGrid days={days} /></div>
+      {/* Activity Heatmap */}
+      <ActivityGrid days={days} />
 
       {/* Badges */}
       {user.userBadges.length > 0 ? (
-        <div className="glass rounded-2xl border border-border/50 p-6 space-y-4">
-          <h2 className="font-bold text-foreground">Badges ({user.userBadges.length})</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="glass rounded-[2rem] border border-border/50 p-8 space-y-5">
+          <h2 className="text-lg font-black text-foreground">Badges ({user.userBadges.length})</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {user.userBadges.map((ub) => (
-              <div key={ub.id} className="glass rounded-xl border border-border/40 p-4 flex flex-col items-center gap-2 text-center">
+              <div key={ub.id} className="glass rounded-2xl border border-border/40 p-5 flex flex-col items-center gap-2 text-center hover:border-primary/30 transition-colors">
                 <span className="text-3xl">{BADGE_EMOJI[ub.badge.name] ?? BADGE_EMOJI.default}</span>
-                <p className="text-sm font-semibold text-foreground">{ub.badge.name}</p>
-                <p className="text-xs text-muted-foreground">{ub.badge.description}</p>
+                <p className="text-sm font-bold text-foreground">{ub.badge.name}</p>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">{ub.badge.description}</p>
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <div className="text-center py-8 glass rounded-2xl border border-dashed border-border/40">
-          <p className="text-2xl mb-2">🏅</p><p className="text-sm text-muted-foreground">No badges yet.</p>
+        <div className="text-center py-10 glass rounded-[2rem] border border-dashed border-border/40">
+          <p className="text-3xl mb-2">🏅</p>
+          <p className="text-sm font-bold text-foreground">No badges yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Complete units and maintain streaks to earn badges.</p>
         </div>
       )}
 
-      <div className="flex flex-col items-center gap-4 pt-10 border-t border-border/20">
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full glass border border-primary/10">
-          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground/60">
-            Platform Architect: <span className="text-foreground">Ali Jitam ❤️</span>
-          </p>
-        </div>
-
-        <Link href="/leaderboard" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors">
+      {/* Navigation */}
+      <div className="flex items-center justify-center gap-6 pt-4">
+        <Link href="/leaderboard" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors font-bold">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-          Back to Leaderboard
+          Leaderboard
+        </Link>
+        <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors font-bold">
+          Dashboard
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
         </Link>
       </div>
     </div>

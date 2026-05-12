@@ -86,17 +86,9 @@ export default async function LearnPage({ params }: { params: { id: string } }) 
         </Link>
       </div>
 
+
       {/* Flashcard Component */}
       <FlashcardClient words={processedWords} />
-
-      <footer className="flex flex-col items-center justify-center pt-24 gap-2 opacity-40">
-        <p className="text-xs font-bold text-foreground">
-          Designed & Developed by <span className="text-primary font-black italic">Ali Jitam ❤️</span>
-        </p>
-        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.4em]">
-          | © 2026 Elite English Mentor |
-        </p>
-      </footer>
     </div>
   );
 }

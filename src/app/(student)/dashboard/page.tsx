@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 const LEVELS = [
   { number: 1, title: "Essential 1", color: "from-emerald-500 to-teal-500", icon: "🌱", description: "Foundational English vocabulary for beginners." },
@@ -15,27 +15,52 @@ const LEVELS = [
   { number: 6, title: "Advanced", color: "from-slate-700 to-slate-900", icon: "👑", description: "Academic proficiency and master-level vocabulary." },
 ];
 
+interface FriendData {
+  friendshipId: string;
+  friend: {
+    id: string;
+    username: string;
+    avatarUrl: string | null;
+    lastSeen: string | null;
+    leaderboard: { totalXp: number; streakDays: number } | null;
+  };
+}
+
+function isOnline(lastSeen: string | null): boolean {
+  if (!lastSeen) return false;
+  const diff = Date.now() - new Date(lastSeen).getTime();
+  return diff < 5 * 60 * 1000; // 5 minutes
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [activeLevel, setActiveLevel] = useState(1);
   const [levelsData, setLevelsData] = useState<any[]>([]);
+  const [friends, setFriends] = useState<FriendData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchProgress() {
+    async function fetchData() {
       try {
-        const res = await fetch("/api/student/progress");
-        if (res.ok) {
-          const data = await res.json();
+        const [progRes, friendRes] = await Promise.all([
+          fetch("/api/student/progress"),
+          fetch("/api/social/friends"),
+        ]);
+        if (progRes.ok) {
+          const data = await progRes.json();
           setLevelsData(data.levels || []);
         }
+        if (friendRes.ok) {
+          const data = await friendRes.json();
+          setFriends(data.friends || []);
+        }
       } catch (err) {
-        console.error("Failed to fetch progress", err);
+        console.error("Failed to fetch dashboard data", err);
       } finally {
         setLoading(false);
       }
     }
-    fetchProgress();
+    fetchData();
   }, []);
 
   const currentLevelData = levelsData.find(l => l.number === activeLevel);
@@ -114,7 +139,7 @@ export default function DashboardPage() {
               <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Mastery Progress</span>
               <div className="h-3 w-64 bg-muted rounded-full overflow-hidden border border-border/50 p-0.5">
                 <div 
-                  className="h-full bg-primary rounded-full transition-all duration-1000 ease-out shadow-[0_0_12px_rgba(var(--primary),0.5)]" 
+                  className="h-full bg-primary rounded-full transition-all duration-1000 ease-out shadow-[0_0_12px_hsl(var(--primary)/0.5)]" 
                   style={{ width: `${(currentLevelData?.units?.length || 0) / 30 * 100}%` }}
                 />
               </div>
@@ -176,59 +201,75 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Right Sidebar: Friends Section */}
-      <aside className="hidden lg:flex flex-col w-80 space-y-6">
+      {/* Right Sidebar: LIVE Friends */}
+      <aside className="hidden lg:flex flex-col w-80 space-y-6 shrink-0">
         <div className="glass rounded-[2.5rem] p-8 border border-border/50 flex-1 flex flex-col">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-black text-foreground tracking-tight">Elite <span className="text-primary">Friends</span></h3>
-            <button className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all">
+            <Link href="/leaderboard" className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all" title="Find friends">
                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                </svg>
-            </button>
+            </Link>
           </div>
           
-          <div className="space-y-4 flex-1">
-             {[
-               { name: "Ahmed", status: "online", level: 4 },
-               { name: "Sarah", status: "offline", level: 2 },
-               { name: "Omar", status: "online", level: 6 },
-               { name: "Layla", status: "offline", level: 1 },
-             ].map((friend) => (
-               <div key={friend.name} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-muted/50 transition-colors group cursor-pointer border border-transparent hover:border-border/50">
-                  <div className="relative">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center font-black text-primary border border-primary/20">
-                      {friend.name[0]}
+          <div className="space-y-3 flex-1">
+            {loading ? (
+              <>
+                {[1,2,3].map(i => (
+                  <div key={i} className="h-16 rounded-2xl shimmer" />
+                ))}
+              </>
+            ) : friends.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center py-8 gap-4">
+                <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center text-2xl">👥</div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">No friends yet</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Search for users on the Leaderboard!</p>
+                </div>
+                <Link href="/leaderboard" className="text-xs font-black text-primary hover:underline uppercase tracking-widest">
+                  Find Friends →
+                </Link>
+              </div>
+            ) : (
+              friends.slice(0, 6).map((f) => {
+                const online = isOnline(f.friend.lastSeen);
+                return (
+                  <Link
+                    key={f.friendshipId}
+                    href={`/profile/${f.friend.username}`}
+                    className="flex items-center gap-4 p-3 rounded-2xl hover:bg-muted/50 transition-colors group cursor-pointer border border-transparent hover:border-border/50"
+                  >
+                    <div className="relative">
+                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center font-black text-primary border border-primary/20 text-sm">
+                        {f.friend.avatarUrl ? (
+                          <img src={f.friend.avatarUrl} alt="" className="h-full w-full rounded-xl object-cover" />
+                        ) : (
+                          f.friend.username[0]?.toUpperCase()
+                        )}
+                      </div>
+                      <span className={cn(
+                        "absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-background",
+                        online ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/30"
+                      )} />
                     </div>
-                    <span className={cn(
-                      "absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-background",
-                      friend.status === "online" ? "bg-emerald-500" : "bg-muted-foreground/30"
-                    )} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-foreground leading-none">{friend.name}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mt-1">Level {friend.level}</p>
-                  </div>
-               </div>
-             ))}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-foreground leading-none truncate">{f.friend.username}</p>
+                      <p className="text-[10px] text-muted-foreground font-bold mt-1">
+                        ⚡ {(f.friend.leaderboard?.totalXp ?? 0).toLocaleString()} XP
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })
+            )}
           </div>
 
-          <button className="mt-8 w-full py-4 rounded-2xl bg-muted/50 text-muted-foreground text-xs font-black uppercase tracking-widest hover:bg-primary/10 hover:text-primary transition-all">
-             View All Friends
-          </button>
-        </div>
-
-        {/* Branding Signature */}
-        <div className="p-4 text-center space-y-1">
-          <p className="text-[10px] font-bold text-muted-foreground/60">
-             Designed & Developed by
-          </p>
-          <p className="text-xs font-black text-foreground">
-             Ali Jitam ❤️
-          </p>
-          <p className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-[0.4em] pt-2">
-             © 2026 Elite Mentor
-          </p>
+          {friends.length > 6 && (
+            <Link href="/leaderboard" className="mt-6 w-full py-3 rounded-2xl bg-muted/50 text-muted-foreground text-xs font-black uppercase tracking-widest hover:bg-primary/10 hover:text-primary transition-all text-center block">
+               View All ({friends.length})
+            </Link>
+          )}
         </div>
       </aside>
     </div>

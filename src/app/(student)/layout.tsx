@@ -1,5 +1,5 @@
 // src/app/(student)/layout.tsx
-// Student-facing shell — different nav from admin
+// Student-facing shell — nav + global heartbeat + single footer signature
 
 import { cn } from "@/lib/utils";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -7,11 +7,15 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import UserMenu from "@/components/UserMenu";
 import Link from "next/link";
+import HeartbeatPing from "./HeartbeatPing";
 
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
   return (
     <div className="min-h-screen bg-background">
+      {/* Heartbeat: silently updates lastSeen every 2 minutes */}
+      {session?.user && <HeartbeatPing />}
+
       {/* Nav */}
       <header className="sticky top-0 z-50 glass border-b border-border/50">
         <div className="mx-auto max-w-7xl px-6 h-16 flex items-center justify-between">
@@ -62,7 +66,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
       <main className="mx-auto max-w-7xl px-6 py-8 min-h-[calc(100vh-160px)]">{children}</main>
 
-      {/* Global Footer */}
+      {/* Global Footer — SINGLE Ali Jitam ❤️ Signature */}
       <footer className="border-t border-border/40 py-12 bg-card/30 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-6 flex flex-col items-center justify-center gap-2">
           <p className="text-sm font-bold text-foreground">
