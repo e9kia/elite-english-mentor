@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 // Word types accepted in the spreadsheet (case-insensitive)
-const WORD_TYPES = ["noun", "verb", "adjective", "adverb", "phrase", "other"] as const;
+const WORD_TYPES = ["noun", "verb", "adjective", "adverb", "preposition", "pronoun", "conjunction", "phrase", "other"] as const;
 
 export const wordRowSchema = z.object({
   /** The vocabulary word itself */

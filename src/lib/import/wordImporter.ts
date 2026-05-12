@@ -103,9 +103,10 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
       for (const raw of rowChunk) {
         const normalised = normaliseRow(raw);
         
-        // Forced Type Mapping
+        // Safety: map any truly unknown types to 'other'
         const rawPos = String(normalised.type || "").toLowerCase();
-        if (["preposition", "pronoun", "conjunction"].includes(rawPos)) normalised.type = "other";
+        const VALID_TYPES = ["noun","verb","adjective","adverb","preposition","pronoun","conjunction","phrase","other"];
+        if (rawPos && !VALID_TYPES.includes(rawPos)) normalised.type = "other";
 
         const parsed = wordRowSchema.safeParse(normalised);
         if (!parsed.success) continue;

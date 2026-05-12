@@ -6,10 +6,14 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 export async function translateToArabic(word: string): Promise<string> {
   if (!process.env.GEMINI_API_KEY) {
     console.warn("GEMINI_API_KEY is missing. Returning fallback.");
-    return `Translation for ${word} (AI Key Missing)`;
+    return `[AI Offline] ${word}`;
   }
   try {
-    const prompt = `Translate the English word "${word}" to Arabic. Provide ONLY the Arabic translation, no extra text or explanations.`;
+    const prompt = `You are an expert English-Arabic translator for a premium learning platform.
+Translate the English word "${word}" to Arabic.
+Provide the Arabic translation followed by a very brief Arabic explanation of the meaning.
+Example format: "تفاحة - فاكهة مستديرة حمراء أو خضراء"
+Return ONLY the Arabic text, no English, no numbering.`;
     const result = await model.generateContent(prompt);
     const response = await result.response;
     return response.text().trim();
@@ -28,18 +32,27 @@ export async function batchTranslateToArabic(words: string[]): Promise<Record<st
     return fallback;
   }
   try {
-    const prompt = `Translate these English words to Arabic for an advanced learning platform. 
-    For each word, provide a high-quality translation that includes the main meaning and a very brief explanation in Arabic if necessary.
-    Return the result as a JSON object where keys are English words and values are Arabic translations. 
-    Format: {"apple": "تفاحة - فاكهة مستديرة حمراء أو خضراء", ...}`;
+    const wordList = words.map((w, i) => `${i + 1}. ${w}`).join("\n");
+    const prompt = `You are an expert English-Arabic translator for a premium learning platform called "Elite English Mentor".
+Translate these English words to Arabic. For each word, provide a high-quality translation that includes the main Arabic meaning and a very brief explanation in Arabic.
+
+Words to translate:
+${wordList}
+
+Return ONLY a valid JSON object where keys are the exact English words and values are Arabic translations.
+Example format: {"apple": "تفاحة - فاكهة مستديرة حمراء أو خضراء", "family": "عائلة - مجموعة من الأشخاص المرتبطين"}
+Do NOT wrap in markdown code blocks. Return raw JSON only.`;
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text().trim();
-    // Remove markdown code blocks if any
-    const jsonStr = text.replace(/```json|```/g, "");
+    // Remove markdown code blocks if present
+    const jsonStr = text.replace(/```json\n?|```\n?/g, "").trim();
     return JSON.parse(jsonStr);
   } catch (error) {
     console.error("Batch translation failed:", error);
-    return {};
+    // Fallback: return empty translations so the import doesn't crash
+    const fallback: Record<string, string> = {};
+    words.forEach(w => fallback[w] = `[AI Error] ${w}`);
+    return fallback;
   }
 }
