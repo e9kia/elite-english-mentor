@@ -17,11 +17,11 @@
 
 "use strict";
 
-const path    = require("path");
-const fs      = require("fs");
-const XLSX    = require("xlsx");
+const path = require("path");
+const fs = require("fs");
+const XLSX = require("xlsx");
 const { PrismaClient } = require("@prisma/client");
-const { z }   = require("zod");
+const { z } = require("zod");
 
 const prisma = new PrismaClient({
   log: ["error"],
@@ -57,10 +57,10 @@ if (args.includes("--help") || args.length === 0) {
   process.exit(0);
 }
 
-const fileArg    = getArg("--file");
-const adminArg   = getArg("--admin") || process.env.ADMIN_ID;
-const isDryRun   = args.includes("--dry-run");
-const doUpsert   = args.includes("--upsert");
+const fileArg = getArg("--file");
+const adminArg = getArg("--admin") || process.env.ADMIN_ID;
+const isDryRun = args.includes("--dry-run");
+const doUpsert = args.includes("--upsert");
 
 function getArg(flag) {
   const idx = args.indexOf(flag);
@@ -82,15 +82,15 @@ const COLUMN_ALIASES = {
 };
 
 const wordRowSchema = z.object({
-  word:       z.string().trim().min(1).max(120),
-  type:       z.string().trim().toLowerCase().refine(v => WORD_TYPES.includes(v), {
-                message: `Type must be one of: ${WORD_TYPES.join(", ")}`,
-              }),
+  word: z.string().trim().min(1).max(120),
+  type: z.string().trim().toLowerCase().refine(v => WORD_TYPES.includes(v), {
+    message: `Type must be one of: ${WORD_TYPES.join(", ")}`,
+  }),
   definition: z.string().trim().min(3).max(1000),
-  example:    z.string().trim().min(3).max(2000),
-  level:      z.coerce.number().int().min(1).max(6),
-  unit:       z.coerce.number().int().min(1).max(30),
-  phonetic:   z.string().trim().max(120).optional(),
+  example: z.string().trim().min(3).max(2000),
+  level: z.coerce.number().int().min(1).max(6),
+  unit: z.coerce.number().int().min(1).max(30),
+  phonetic: z.string().trim().max(120).optional(),
   difficulty: z.coerce.number().int().min(1).max(5).optional().default(1),
 });
 
@@ -109,7 +109,7 @@ async function main() {
   }
 
   const filename = path.basename(filePath);
-  const ext      = path.extname(filename).toLowerCase();
+  const ext = path.extname(filename).toLowerCase();
   if (![".xlsx", ".xls", ".csv"].includes(ext)) {
     console.error(`❌  Unsupported file type: ${ext}. Use .xlsx, .xls, or .csv`);
     process.exit(1);
@@ -120,10 +120,10 @@ async function main() {
   console.log("─".repeat(60));
 
   // ── 1. Parse file ────────────────────────────────────────────────
-  const buffer   = fs.readFileSync(filePath);
+  const buffer = fs.readFileSync(filePath);
   const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true, raw: false });
-  const sheet    = workbook.Sheets[workbook.SheetNames[0]];
-  const rawRows  = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
   console.log(`📊  Raw rows found: ${rawRows.length}`);
 
@@ -133,12 +133,12 @@ async function main() {
   }
 
   // ── 2. Normalise and validate rows ───────────────────────────────
-  const errors        = [];
+  const errors = [];
   const validatedRows = [];
 
   for (let i = 0; i < rawRows.length; i++) {
-    const rowNum     = i + 2; // 1-indexed, accounting for header
-    const raw        = rawRows[i];
+    const rowNum = i + 2; // 1-indexed, accounting for header
+    const raw = rawRows[i];
     const normalised = {};
 
     for (const [key, value] of Object.entries(raw)) {
@@ -207,10 +207,10 @@ async function main() {
   const batch = await prisma.importBatch.create({
     data: {
       filename,
-      uploadedById:  adminUserId,
-      totalRows:     rawRows.length,
+      userId: adminUserId,
+      totalRows: rawRows.length,
       importedCount: 0,
-      status:        "processing",
+      status: "processing",
     },
   });
   console.log(`\n📋  Import batch created: ${batch.id}`);
@@ -218,13 +218,13 @@ async function main() {
   // ── 7. Upsert words in chunks ────────────────────────────────────
   const CHUNK_SIZE = 100;
   let imported = 0;
-  let skipped  = 0;
+  let skipped = 0;
   const importErrors = [...errors];
 
   const toImport = [];
   for (const { rowNum, data } of validatedRows) {
     const unitKey = `${data.level}-${data.unit}`;
-    const unitId  = unitCache.get(unitKey);
+    const unitId = unitCache.get(unitKey);
 
     if (!unitId) {
       importErrors.push({
@@ -247,20 +247,20 @@ async function main() {
           where: { unitId_word: { unitId, word: data.word } },
           create: {
             unitId,
-            word:          data.word,
-            type:          data.type,
-            definition:    data.definition,
-            example:       data.example,
-            phonetic:      data.phonetic ?? null,
-            difficulty:    data.difficulty,
+            word: data.word,
+            type: data.type,
+            definition: data.definition,
+            example: data.example,
+            phonetic: data.phonetic ?? null,
+            difficulty: data.difficulty,
             importBatchId: batch.id,
-            createdById:   adminUserId,
+            createdById: adminUserId,
           },
           update: doUpsert ? {
-            type:       data.type,
+            type: data.type,
             definition: data.definition,
-            example:    data.example,
-            phonetic:   data.phonetic ?? null,
+            example: data.example,
+            phonetic: data.phonetic ?? null,
             difficulty: data.difficulty,
           } : {},
         })
@@ -278,10 +278,10 @@ async function main() {
     where: { id: batch.id },
     data: {
       importedCount: imported,
-      skippedCount:  skipped,
-      errorCount:    importErrors.length,
-      errorLog:      importErrors.length > 0 ? importErrors : undefined,
-      status:        "done",
+      skippedCount: skipped,
+      errorCount: importErrors.length,
+      errorLog: importErrors.length > 0 ? importErrors : undefined,
+      status: "done",
     },
   });
 

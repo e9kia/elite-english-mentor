@@ -6,7 +6,7 @@ import { wordRowSchema } from "./validators";
 import { batchTranslateToArabic } from "../gemini";
 
 export interface ImportOptions {
-  uploadedById: string;
+  userId: string;
   filename: string;
   buffer: Buffer;
   upsertDuplicates?: boolean;
@@ -38,7 +38,7 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
   const batch = await prisma.importBatch.create({
     data: {
       filename: opts.filename,
-      uploadedById: opts.uploadedById,
+      userId: opts.uploadedById,
       totalRows: 0,
       status: "processing",
     },
@@ -52,7 +52,7 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
     const decoder = new TextDecoder("utf-8");
     const csvContent = decoder.decode(opts.buffer);
     let rawRows: any[] = [];
-    
+
     if (opts.filename.endsWith(".csv")) {
       const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
       rawRows = parsed.data;
@@ -65,9 +65,9 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
     if (rawRows.length === 0) throw new Error("File is empty.");
 
     // 3. PRE-PROCESS ENTITIES
-    const entityMap = new Map<string, number>(); 
+    const entityMap = new Map<string, number>();
     const uniqueUnits = new Set<string>();
-    
+
     rawRows.forEach((row: any) => {
       const normalised = normaliseRow(row);
       const lvl = parseInt(String(normalised.level));
@@ -96,16 +96,16 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
     for (let i = 0; i < rawRows.length; i += AI_BATCH_SIZE) {
       const rowChunk = rawRows.slice(i, i + AI_BATCH_SIZE);
       const wordsToTranslate = rowChunk.map(r => String(normaliseRow(r).word || "").trim()).filter(Boolean);
-      
+
       const aiTranslations = await batchTranslateToArabic(wordsToTranslate);
 
       const wordsToUpsert = [];
       for (const raw of rowChunk) {
         const normalised = normaliseRow(raw);
-        
+
         // Safety: map any truly unknown types to 'other'
         const rawPos = String(normalised.type || "").toLowerCase();
-        const VALID_TYPES = ["noun","verb","adjective","adverb","preposition","pronoun","conjunction","phrase","other"];
+        const VALID_TYPES = ["noun", "verb", "adjective", "adverb", "preposition", "pronoun", "conjunction", "phrase", "other"];
         if (rawPos && !VALID_TYPES.includes(rawPos)) normalised.type = "other";
 
         const parsed = wordRowSchema.safeParse(normalised);

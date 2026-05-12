@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     // ── 5. Run import engine ──────────────────────────────────────
     const result = await importWordsFromBuffer({
-      uploadedById: user.id,
+      userId: user.id,
       filename: file.name,
       buffer,
       upsertDuplicates: formData.get("upsertDuplicates") === "true",
