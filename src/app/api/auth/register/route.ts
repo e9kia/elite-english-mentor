@@ -39,12 +39,16 @@ export async function POST(req: NextRequest) {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
+  // Ali Jitam ❤️: First user to sign up becomes Admin
+  const userCount = await prisma.user.count();
+  const role = userCount === 0 ? "admin" : "student";
+
   const user = await prisma.user.create({
     data: {
       username,
       email:        email.toLowerCase(),
       passwordHash,
-      role:         "student",
+      role,
     },
     select: { id: true, username: true, email: true, role: true },
   });

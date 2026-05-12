@@ -67,31 +67,6 @@ export const authOptions: NextAuthOptions = {
             where: { email: credentials.email.toLowerCase().trim() },
           });
 
-          // ── EMERGENCY BYPASS FOR ALI JITAM ❤️ ──────────────────────────
-          // This bypasses the bcrypt hash check for the admin account.
-          if (credentials.email.toLowerCase().trim() === "gattam035@gmail.com" && credentials.password === "ali123") {
-            console.log("🔓 EMERGENCY BYPASS: Ali Jitam ❤️ is forcing entry.");
-            if (!user) {
-              // Fallback if the user doesn't even exist in the DB
-              return {
-                id: "emergency-admin-id",
-                email: "gattam035@gmail.com",
-                name: "ali",
-                username: "ali",
-                role: "admin",
-                image: null,
-              };
-            }
-            return {
-              id: user.id,
-              email: user.email,
-              name: user.username,
-              username: user.username,
-              role: user.role,
-              image: user.avatarUrl ?? null,
-            };
-          }
-
           if (!user || !user.passwordHash) return null;
 
           const valid = await bcrypt.compare(credentials.password, user.passwordHash);
