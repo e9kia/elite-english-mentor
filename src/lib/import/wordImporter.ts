@@ -38,7 +38,7 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
   const batch = await prisma.importBatch.create({
     data: {
       filename: opts.filename,
-      userId: opts.uploadedById,
+      userId: opts.userId,
       totalRows: 0,
       status: "processing",
     },
@@ -127,7 +127,7 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
           phonetic: data.phonetic ?? null,
           difficulty: data.difficulty,
           importBatchId: batch.id,
-          createdById: opts.uploadedById,
+          createdById: opts.userId,
         });
       }
 
