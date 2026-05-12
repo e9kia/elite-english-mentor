@@ -1,53 +1,87 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cn } from "@/lib/utils";
 import FlashcardClient from "./FlashcardClient";
-import { translateToArabic } from "@/lib/gemini";
+import { generateFlashcardData, type FlashcardAIData } from "@/lib/gemini";
 
 export const dynamic = "force-dynamic";
 
+export interface EnrichedWord {
+  id: string;
+  word: string;
+  type: string;
+  definition: string;
+  example: string;
+  phonetic?: string | null;
+  aiData: FlashcardAIData;
+}
+
 export default async function LearnPage({ params }: { params: { id: string } }) {
   const unitId = parseInt(params.id);
-
-  if (isNaN(unitId)) {
-    return notFound();
-  }
+  if (isNaN(unitId)) return notFound();
 
   const unit = await prisma.unit.findUnique({
     where: { id: unitId },
     include: {
       level: true,
-      words: {
-        orderBy: { id: "asc" }
-      }
-    }
+      words: { orderBy: { id: "asc" } },
+    },
   });
 
   if (!unit) return notFound();
 
-  // AI LIVE GENERATION: If words are missing data, fill them on the fly
-  const processedWords = await Promise.all(unit.words.map(async (w) => {
-    if (!w.definition || w.definition === "Translation unavailable") {
+  // ─── AI DATA HEALING: The Brain ───────────────────────────────────
+  // For every word, generate RICH structured data via Gemini.
+  // If the word already has a valid definition, we still generate
+  // the 3 examples on the fly (they're not stored in the DB).
+  // This is Ali Jitam's "Zero Empty States" philosophy.
+  const enrichedWords: EnrichedWord[] = await Promise.all(
+    unit.words.map(async (w) => {
       try {
-        console.log(`[AI] Live translating: ${w.word}`);
-        const aiResult = await translateToArabic(w.word);
-        
-        // Optionally update the DB in background
-        await prisma.word.update({
-          where: { id: w.id },
-          data: { definition: aiResult }
-        });
+        console.log(`[AI HEAL] Generating flashcard data for: ${w.word}`);
+        const aiData = await generateFlashcardData(w.word, w.type);
 
-        return { ...w, definition: aiResult };
+        // If the DB definition was missing, also persist the translation
+        if (!w.definition || w.definition.startsWith("[AI")) {
+          await prisma.word.update({
+            where: { id: w.id },
+            data: { definition: aiData.translation },
+          }).catch(() => {}); // Non-blocking write
+        }
+
+        return {
+          id: w.id,
+          word: w.word,
+          type: w.type,
+          definition: w.definition && !w.definition.startsWith("[AI") ? w.definition : aiData.translation,
+          example: w.example,
+          phonetic: w.phonetic,
+          aiData,
+        };
       } catch (err) {
-        console.error(`[AI ERROR] Failed to translate ${w.word}`, err);
+        console.error(`[AI HEAL] Failed for ${w.word}:`, err);
+        return {
+          id: w.id,
+          word: w.word,
+          type: w.type,
+          definition: w.definition || "Translation pending...",
+          example: w.example,
+          phonetic: w.phonetic,
+          aiData: {
+            translation: w.definition || "Translation pending...",
+            posArabic: w.type,
+            examples: [
+              { english: w.example, arabic: "الترجمة قيد المعالجة" },
+              { english: `${w.word} is commonly used.`, arabic: "يستخدم بشكل شائع" },
+              { english: `Learn the word ${w.word}.`, arabic: "تعلم هذه الكلمة" },
+            ],
+          },
+        };
       }
-    }
-    return w;
-  }));
+    })
+  );
 
-  if (processedWords.length === 0) {
+  if (enrichedWords.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 animate-fade-in">
         <div className="h-20 w-20 rounded-[2rem] bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-xl shadow-amber-500/5">
@@ -57,7 +91,7 @@ export default async function LearnPage({ params }: { params: { id: string } }) 
         </div>
         <div className="text-center">
           <h1 className="text-3xl font-black text-foreground mb-2 italic">Unit {unit.number} is empty</h1>
-          <p className="text-muted-foreground font-medium">Please upload words to begin learning.</p>
+          <p className="text-muted-foreground font-medium">Upload words via the Admin panel to begin learning.</p>
         </div>
         <Link href="/dashboard" className="bg-primary text-white px-8 py-3 rounded-2xl font-black shadow-2xl shadow-primary/20 hover:scale-105 transition-all">
           Return to Hub
@@ -68,6 +102,7 @@ export default async function LearnPage({ params }: { params: { id: string } }) 
 
   return (
     <div className="max-w-4xl mx-auto space-y-12 animate-fade-in">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-border/50 pb-8">
         <div>
            <div className="flex items-center gap-2 mb-2">
@@ -75,6 +110,9 @@ export default async function LearnPage({ params }: { params: { id: string } }) 
                Tier {unit.level.number}
              </span>
              <span className="text-[10px] font-bold text-muted-foreground tracking-[0.2em] uppercase">Unit {unit.number}</span>
+             <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+               {enrichedWords.length} words
+             </span>
            </div>
            <h1 className="text-4xl md:text-5xl font-black text-foreground tracking-tighter italic">{unit.title}</h1>
         </div>
@@ -86,9 +124,8 @@ export default async function LearnPage({ params }: { params: { id: string } }) 
         </Link>
       </div>
 
-
-      {/* Flashcard Component */}
-      <FlashcardClient words={processedWords} />
+      {/* The 3D Flashcard Engine */}
+      <FlashcardClient words={enrichedWords} />
     </div>
   );
 }
