@@ -2,8 +2,9 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export default async function LevelOverviewPage({ params }: { params: { levelId: string } }) {
-  const levelNumber = parseInt(params.levelId);
+export default async function LevelOverviewPage({ params }: { params: Promise<{ levelId: string }> }) {
+  const { levelId } = await params;
+  const levelNumber = parseInt(levelId);
   if (isNaN(levelNumber)) return notFound();
 
   const level = await prisma.level.findUnique({

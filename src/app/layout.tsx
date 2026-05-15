@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import "./flashcard.css";
 import { Toaster } from "sonner";
@@ -8,8 +9,8 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title:       "4,000 Essential English Words — Admin",
-  description: "Academic English Learning Platform — Admin Panel",
+  title:       "Elite English Mentor — 4,000 Essential Words",
+  description: "Premium AI-Powered English Learning Platform by Ali Jitam ❤️",
 };
 
 import { Providers } from "@/components/Providers";
@@ -17,6 +18,11 @@ import { Providers } from "@/components/Providers";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+      </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <Providers>
           {children}
@@ -39,8 +45,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           position="top-right"
           toastOptions={{
             style: {
-              background: "hsl(222 40% 11%)",
-              border:     "1px solid hsl(217 30% 20%)",
+              background: "hsl(225 25% 11%)",
+              border:     "1px solid hsl(225 18% 18%)",
               color:      "hsl(210 40% 93%)",
             },
           }}

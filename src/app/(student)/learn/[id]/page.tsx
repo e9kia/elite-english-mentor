@@ -16,8 +16,9 @@ export interface EnrichedWord {
   aiData: FlashcardAIData;
 }
 
-export default async function LearnPage({ params }: { params: { id: string } }) {
-  const unitId = parseInt(params.id);
+export default async function LearnPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const unitId = parseInt(id);
   if (isNaN(unitId)) return notFound();
 
   const unit = await prisma.unit.findUnique({

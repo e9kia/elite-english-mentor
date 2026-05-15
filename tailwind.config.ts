@@ -35,6 +35,10 @@ const config: Config = {
           DEFAULT:    "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        gold: {
+          DEFAULT: "hsl(var(--gold))",
+          deep:    "hsl(var(--gold-deep))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -42,7 +46,7 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: ["Geist", "var(--font-inter)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "monospace"],
       },
       animation: {

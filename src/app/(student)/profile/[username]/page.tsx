@@ -7,15 +7,16 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import Link from "next/link";
 
-export async function generateMetadata({ params }: { params: { username: string } }): Promise<Metadata> {
-  return { title: `${params.username}'s Profile — Elite English Mentor` };
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+  const { username } = await params;
+  return { title: `${username}'s Profile — Elite English Mentor` };
 }
 
 function StatCard({ label, value, icon, color = "text-foreground" }: {
   label: string; value: string | number; icon: string; color?: string;
 }) {
   return (
-    <div className="glass rounded-[2rem] border border-border/50 p-6 flex flex-col gap-3 hover:border-border/80 transition-colors">
+    <div className="elite-card rounded-[2rem] border border-gold/10 p-6 flex flex-col gap-3 hover:border-gold/30 transition-all duration-500 hover:shadow-lg hover:shadow-gold/5">
       <div className="flex items-center justify-between">
         <span className="text-3xl">{icon}</span>
         <span className={cn("text-3xl font-black tabular-nums", color)}>{value}</span>
@@ -28,8 +29,8 @@ function StatCard({ label, value, icon, color = "text-foreground" }: {
 function ActivityGrid({ days }: { days: { date: string; xp: number }[] }) {
   const max = Math.max(...days.map((d) => d.xp), 1);
   return (
-    <div className="glass rounded-[2rem] border border-border/50 p-6">
-      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-4">30-Day Activity</p>
+    <div className="elite-card rounded-[2rem] border border-gold/10 p-6">
+      <p className="text-[10px] font-black text-gold/60 uppercase tracking-widest mb-4">30-Day Activity</p>
       <div className="flex gap-1 flex-wrap">
         {days.map((d, i) => (
           <div key={i} title={`${d.date}: ${d.xp} XP`}
@@ -41,9 +42,10 @@ function ActivityGrid({ days }: { days: { date: string; xp: number }[] }) {
   );
 }
 
-export default async function ProfilePage({ params }: { params: { username: string } }) {
+export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
+  const { username } = await params;
   const user = await prisma.user.findUnique({
-    where: { username: params.username },
+    where: { username },
     select: {
       id: true, username: true, avatarUrl: true, createdAt: true, role: true, lastSeen: true,
       team: { select: { name: true, id: true } },
@@ -87,19 +89,25 @@ export default async function ProfilePage({ params }: { params: { username: stri
 
   const isOnline = user.lastSeen && (Date.now() - new Date(user.lastSeen).getTime() < 5 * 60 * 1000);
 
+  // XP level calculation
+  const level = Math.floor(xp / 500) + 1;
+  const xpInLevel = xp % 500;
+  const xpToNext = 500;
+
   const BADGE_EMOJI: Record<string, string> = { "First Word": "🌱", "Word Explorer": "🗺️", "Vocabulary Master": "👑", default: "🏅" };
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-6">
       {/* Hero Card */}
-      <div className="glass rounded-[3rem] border border-border/50 p-10 relative overflow-hidden shadow-2xl">
+      <div className="elite-card rounded-[3rem] border border-gold/15 p-10 relative overflow-hidden shadow-2xl">
         <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-primary/10 blur-[80px] pointer-events-none" />
+        <div className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-gold/8 blur-[60px] pointer-events-none" />
         <div className="relative flex flex-col sm:flex-row items-center gap-8">
           <div className="relative">
             {user.avatarUrl ? (
               <img src={user.avatarUrl} alt={user.username} className="h-28 w-28 rounded-[2rem] object-cover border-4 border-background shadow-xl shrink-0" />
             ) : (
-              <div className="h-28 w-28 rounded-[2rem] bg-gradient-to-br from-primary/30 to-violet-500/30 border-4 border-background shadow-xl flex items-center justify-center text-5xl font-black shrink-0 text-foreground">
+              <div className="h-28 w-28 rounded-[2rem] bg-gradient-to-br from-primary/30 to-gold/30 border-4 border-background shadow-xl flex items-center justify-center text-5xl font-black shrink-0 text-foreground">
                 {user.username[0].toUpperCase()}
               </div>
             )}
@@ -121,14 +129,29 @@ export default async function ProfilePage({ params }: { params: { username: stri
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
               {isOnline ? "🟢 Online now" : `Member since ${new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`}
             </p>
+
+            {/* XP Level Bar */}
+            <div className="mt-4 max-w-xs mx-auto sm:mx-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-black text-gold uppercase tracking-widest">Level {level}</span>
+                <span className="text-[10px] font-bold text-muted-foreground">{xpInLevel} / {xpToNext} XP</span>
+              </div>
+              <div className="h-2.5 bg-muted rounded-full overflow-hidden border border-border/50 p-0.5">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-gold rounded-full transition-all duration-1000 ease-out shadow-[0_0_12px_hsl(var(--primary)/0.5)]"
+                  style={{ width: `${(xpInLevel / xpToNext) * 100}%` }}
+                />
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-3 mt-5 justify-center sm:justify-start">
-              {streak > 0 && <span className="text-xs bg-amber-500 text-white px-4 py-1.5 rounded-xl font-bold shadow-lg shadow-amber-500/20">🔥 {streak} Day Streak</span>}
-              <span className="text-xs bg-primary text-white px-4 py-1.5 rounded-xl font-bold shadow-lg shadow-primary/20">⚡ {xp.toLocaleString()} XP</span>
+              {streak > 0 && <span className="text-xs bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-1.5 rounded-xl font-bold shadow-lg shadow-amber-500/20">🔥 {streak} Day Streak</span>}
+              <span className="text-xs bg-gradient-to-r from-primary to-emerald-600 text-white px-4 py-1.5 rounded-xl font-bold shadow-lg shadow-primary/20">⚡ {xp.toLocaleString()} XP</span>
             </div>
           </div>
           {isOwnProfile && (
-            <Link href="/profile/edit" className="shrink-0 px-5 py-2.5 bg-muted/50 border border-border/50 text-foreground text-sm font-bold rounded-2xl hover:bg-muted transition-all active:scale-95 shadow-sm">
-              Edit Profile
+            <Link href="/profile/edit" className="shrink-0 px-5 py-2.5 bg-gold/10 border border-gold/20 text-foreground text-sm font-bold rounded-2xl hover:bg-gold/20 transition-all active:scale-95 shadow-sm">
+              ✏️ Edit Profile
             </Link>
           )}
         </div>
@@ -136,7 +159,7 @@ export default async function ProfilePage({ params }: { params: { username: stri
 
       {/* Bento Grid Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Total XP"   value={xp.toLocaleString()} icon="⚡" color="text-amber-400" />
+        <StatCard label="Total XP"   value={xp.toLocaleString()} icon="⚡" color="text-gold" />
         <StatCard label="Words Seen" value={total}   icon="👁️" />
         <StatCard label="Mastered"   value={mastered} icon="🎓" color="text-emerald-400" />
         <StatCard label="Day Streak" value={`${streak}d`} icon="🔥" color="text-orange-400" />
@@ -144,7 +167,7 @@ export default async function ProfilePage({ params }: { params: { username: stri
 
       {/* Mastery Breakdown */}
       {total > 0 && (
-        <div className="glass rounded-[2rem] border border-border/50 p-8 space-y-5">
+        <div className="elite-card rounded-[2rem] border border-gold/10 p-8 space-y-5">
           <h2 className="text-lg font-black text-foreground">Word Mastery Breakdown</h2>
           {([
             ["Learning", learning, "bg-amber-500", "text-amber-500"],
@@ -169,11 +192,11 @@ export default async function ProfilePage({ params }: { params: { username: stri
 
       {/* Badges */}
       {user.userBadges.length > 0 ? (
-        <div className="glass rounded-[2rem] border border-border/50 p-8 space-y-5">
+        <div className="elite-card rounded-[2rem] border border-gold/10 p-8 space-y-5">
           <h2 className="text-lg font-black text-foreground">Badges ({user.userBadges.length})</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {user.userBadges.map((ub) => (
-              <div key={ub.id} className="glass rounded-2xl border border-border/40 p-5 flex flex-col items-center gap-2 text-center hover:border-primary/30 transition-colors">
+              <div key={ub.id} className="elite-card rounded-2xl border border-gold/10 p-5 flex flex-col items-center gap-2 text-center hover:border-gold/30 transition-colors">
                 <span className="text-3xl">{BADGE_EMOJI[ub.badge.name] ?? BADGE_EMOJI.default}</span>
                 <p className="text-sm font-bold text-foreground">{ub.badge.name}</p>
                 <p className="text-[10px] text-muted-foreground leading-relaxed">{ub.badge.description}</p>
@@ -182,7 +205,7 @@ export default async function ProfilePage({ params }: { params: { username: stri
           </div>
         </div>
       ) : (
-        <div className="text-center py-10 glass rounded-[2rem] border border-dashed border-border/40">
+        <div className="text-center py-10 elite-card rounded-[2rem] border border-dashed border-gold/10">
           <p className="text-3xl mb-2">🏅</p>
           <p className="text-sm font-bold text-foreground">No badges yet</p>
           <p className="text-xs text-muted-foreground mt-1">Complete units and maintain streaks to earn badges.</p>

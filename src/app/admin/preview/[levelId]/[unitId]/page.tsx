@@ -5,10 +5,11 @@ import { cn } from "@/lib/utils";
 export default async function AdminFlashcardPreview({
   params,
 }: {
-  params: { levelId: string; unitId: string };
+  params: Promise<{ levelId: string; unitId: string }>;
 }) {
-  const levelNumber = parseInt(params.levelId);
-  const unitNumber = parseInt(params.unitId);
+  const { levelId, unitId } = await params;
+  const levelNumber = parseInt(levelId);
+  const unitNumber = parseInt(unitId);
 
   if (isNaN(levelNumber) || isNaN(unitNumber)) notFound();
 
