@@ -1,16 +1,25 @@
 "use client";
 
 // =====================================================================
-//  FlashcardClient.tsx — Ali Jitam's Elite 3D Flashcard Engine
-//  Features: 3D Flip, Rule of 3 Examples, Mark as Mastered, SRS Buttons,
-//  Confetti Celebration, Premium Midnight Emerald & Gold Typography
+//  FlashcardClient.tsx — Foundation Protocol Edition
+//  Features:
+//  - 3-Button SRS: Unknown / Medium / Strong
+//  - Linear A→Z progression (no skip, no back)
+//  - currentWordIndex persistence
+//  - Color-coded word types (Nouns=Orange, Verbs=Blue, Adjectives=Purple)
+//  - Speaker 🔊 only (no Mic 🎤)
+//  - AI Tutor panel with fallback
+//  - Confetti on unit completion
+//  Designed by Ali Jitam ❤️
 // =====================================================================
 
 import { useState, useEffect, useCallback, useMemo, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { rateWord, type SrsRating } from "@/app/actions/study";
+import { rateWord, saveWordProgress, completeUnit, type SrsRating } from "@/app/actions/study";
 import { useSession } from "next-auth/react";
+import AITutorPanel from "@/components/study/AITutorPanel";
+import VoiceButton from "@/components/study/VoiceButton";
 
 interface FlashcardAIData {
   translation: string;
@@ -28,7 +37,29 @@ interface EnrichedWord {
   aiData: FlashcardAIData;
 }
 
-// ─── Confetti Particle Generator ─────────────────────────────────────
+// ── Word Type → Color map (Nouns=Orange, Verbs=Blue, Adjectives=Purple) ──
+const TYPE_COLORS: Record<string, { bg: string; text: string; border: string; badge: string }> = {
+  noun:        { bg: "bg-orange-500/10", text: "text-orange-400", border: "border-orange-500/30", badge: "bg-orange-500" },
+  verb:        { bg: "bg-blue-500/10",   text: "text-blue-400",   border: "border-blue-500/30",   badge: "bg-blue-500"   },
+  adjective:   { bg: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/30", badge: "bg-purple-500" },
+  adverb:      { bg: "bg-teal-500/10",   text: "text-teal-400",   border: "border-teal-500/30",   badge: "bg-teal-500"   },
+  preposition: { bg: "bg-pink-500/10",   text: "text-pink-400",   border: "border-pink-500/30",   badge: "bg-pink-500"   },
+  phrase:      { bg: "bg-cyan-500/10",    text: "text-cyan-400",   border: "border-cyan-500/30",   badge: "bg-cyan-500"   },
+  other:       { bg: "bg-slate-500/10",  text: "text-slate-400",  border: "border-slate-500/30",  badge: "bg-slate-500"  },
+};
+
+function getTypeColor(type: string) {
+  return TYPE_COLORS[type.toLowerCase()] ?? TYPE_COLORS.other;
+}
+
+// ── 3-Button SRS Config ──────────────────────────────────────────────
+const SRS_BUTTONS: { label: string; sub: string; rating: SrsRating; color: string; icon: string; glow: string }[] = [
+  { label: "Unknown",  sub: "Review soon",   rating: 1, color: "from-rose-500 to-red-600",     icon: "🔴", glow: "shadow-rose-500/30"    },
+  { label: "Medium",   sub: "Getting there",  rating: 2, color: "from-amber-500 to-yellow-600", icon: "🟡", glow: "shadow-amber-500/30"   },
+  { label: "Strong",   sub: "Mastered!",       rating: 3, color: "from-emerald-500 to-green-600",icon: "🟢", glow: "shadow-emerald-500/30" },
+];
+
+// ── Confetti Particle Generator ──────────────────────────────────────
 function ConfettiExplosion() {
   const particles = useMemo(() =>
     Array.from({ length: 60 }).map((_, i) => ({
@@ -66,85 +97,127 @@ function ConfettiExplosion() {
           <p className="text-lg text-muted-foreground font-bold italic">
             Ali Jitam ❤️ is proud of your excellence.
           </p>
+          <p className="text-gold font-black text-xl mt-4">+50 XP Bonus! ⚡</p>
+          <a href="/dashboard" className="inline-block mt-6 bg-primary text-white px-8 py-3 rounded-2xl font-black shadow-lg hover:scale-105 transition-all">
+            Return to Path →
+          </a>
         </div>
       </motion.div>
     </div>
   );
 }
 
-// ─── SRS Rating Button ───────────────────────────────────────────────
-const SRS_BUTTONS: { label: string; rating: SrsRating; color: string; icon: string }[] = [
-  { label: "Again", rating: 1, color: "from-rose-500 to-red-600 shadow-rose-500/20", icon: "🔄" },
-  { label: "Hard", rating: 2, color: "from-amber-500 to-orange-600 shadow-amber-500/20", icon: "😤" },
-  { label: "Good", rating: 3, color: "from-blue-500 to-indigo-600 shadow-blue-500/20", icon: "👍" },
-  { label: "Easy", rating: 4, color: "from-emerald-500 to-green-600 shadow-emerald-500/20", icon: "⚡" },
-];
-
-// ─── Main Flashcard Engine ───────────────────────────────────────────
-export default function FlashcardClient({ words }: { words: EnrichedWord[] }) {
+// ── Main Flashcard Engine ────────────────────────────────────────────
+export default function FlashcardClient({
+  words,
+  unitId,
+  unitTitle,
+  levelNumber,
+  unitNumber,
+  initialWordIndex = 0,
+}: {
+  words: EnrichedWord[];
+  unitId: number;
+  unitTitle: string;
+  levelNumber: number;
+  unitNumber: number;
+  initialWordIndex?: number;
+}) {
   const { data: session } = useSession();
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(Math.min(initialWordIndex, words.length - 1));
+  const [maxUnlocked, setMaxUnlocked] = useState(Math.min(initialWordIndex, words.length - 1));
   const [isFlipped, setIsFlipped] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [masteredIds, setMasteredIds] = useState<Set<string>>(new Set());
+  const [ratedIds, setRatedIds] = useState<Set<string>>(new Set());
   const [lastXp, setLastXp] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const current = words[index];
   const isLast = index === words.length - 1;
   const isMastered = masteredIds.has(current.id);
+  const isRated = ratedIds.has(current.id);
+  const typeColor = getTypeColor(current.type);
+  const progress = Math.round(((maxUnlocked + 1) / words.length) * 100);
 
+  // ── Rate word + save progress + advance ────────────────────────────
   const handleRate = useCallback((rating: SrsRating) => {
+    if (isRated) return; // Already rated this word in this session visit
+
     startTransition(async () => {
       try {
         const result = await rateWord({
           wordId: current.id,
           rating,
           userId: session?.user?.id,
+          unitId,
         });
+
         setLastXp(result.xpEarned);
+        setRatedIds(prev => new Set(prev).add(current.id));
+
         if (result.masteryLevel >= 3) {
           setMasteredIds(prev => new Set(prev).add(current.id));
         }
+
+        // Save word progress (advance currentWordIndex)
+        const newIndex = index + 1;
+        if (newIndex <= words.length) {
+          await saveWordProgress({
+            userId: session?.user?.id,
+            unitId,
+            newIndex: Math.min(newIndex, words.length - 1),
+          });
+        }
+
+        // Unlock next word
+        if (index + 1 < words.length) {
+          setMaxUnlocked(prev => Math.max(prev, index + 1));
+        }
+
         setTimeout(() => setLastXp(null), 2000);
+
+        // Auto-advance after a short delay
+        setTimeout(() => {
+          setIsFlipped(false);
+          setTimeout(() => {
+            if (index + 1 >= words.length) {
+              // Complete the unit!
+              completeUnit({ userId: session?.user?.id, unitId });
+              setShowConfetti(true);
+            } else {
+              setIndex(prev => prev + 1);
+            }
+          }, 250);
+        }, 600);
+
       } catch (e) {
         console.error("Failed to rate word:", e);
       }
     });
-  }, [current.id, session?.user?.id]);
+  }, [current.id, index, isRated, session?.user?.id, unitId, words.length]);
 
-  const handleMastered = useCallback(() => {
-    handleRate(4);
-  }, [handleRate]);
-
-  const next = useCallback(() => {
-    setIsFlipped(false);
-    if (isLast) {
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 4000);
-    }
-    setTimeout(() => setIndex((prev) => (prev + 1) % words.length), 200);
-  }, [isLast, words.length]);
-
-  const prev = useCallback(() => {
-    setIsFlipped(false);
-    setTimeout(() => setIndex((prev) => (prev - 1 + words.length) % words.length), 200);
-  }, [words.length]);
-
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") next();
-      else if (e.key === "ArrowLeft") prev();
-      else if (e.key === " ") { e.preventDefault(); setIsFlipped(f => !f); }
+      if (showConfetti) return;
+      if (e.key === " ") { e.preventDefault(); setIsFlipped(f => !f); }
+      if (isFlipped && !isRated) {
+        if (e.key === "1") handleRate(1);
+        if (e.key === "2") handleRate(2);
+        if (e.key === "3") handleRate(3);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [next, prev]);
+  }, [isFlipped, isRated, handleRate, showConfetti]);
+
+  if (showConfetti) {
+    return <ConfettiExplosion />;
+  }
 
   return (
-    <div className="flex flex-col items-center gap-10 py-4">
-      <AnimatePresence>{showConfetti && <ConfettiExplosion />}</AnimatePresence>
-
+    <div className="flex flex-col items-center gap-8 py-4">
       {/* XP Toast */}
       <AnimatePresence>
         {lastXp !== null && (
@@ -159,31 +232,57 @@ export default function FlashcardClient({ words }: { words: EnrichedWord[] }) {
         )}
       </AnimatePresence>
 
-      {/* Progress Track */}
-      <div className="flex gap-1.5 flex-wrap justify-center max-w-lg">
-        {words.map((w, i) => (
-          <button
-            key={i}
-            onClick={() => { setIsFlipped(false); setIndex(i); }}
-            className={cn(
-              "h-2 rounded-full transition-all duration-500 cursor-pointer hover:opacity-80",
-              i === index
-                ? "bg-primary w-12 shadow-[0_0_14px_hsl(var(--primary)/0.5)]"
-                : masteredIds.has(w.id)
-                  ? "bg-gold w-6"
-                  : i < index
-                    ? "bg-primary/40 w-6"
-                    : "bg-muted/30 w-6"
-            )}
+      {/* ── Progress Bar ── */}
+      <div className="w-full max-w-2xl space-y-3">
+        <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gold/50">
+              L{levelNumber} · U{unitNumber}
+            </span>
+            <span className="text-foreground">{unitTitle}</span>
+          </span>
+          <span>
+            <span className="text-foreground font-black tabular-nums">{index + 1}</span>
+            <span className="text-muted-foreground/40 mx-1">/</span>
+            <span>{words.length}</span>
+          </span>
+        </div>
+        <div className="h-2.5 w-full bg-muted/20 rounded-full overflow-hidden border border-border/20">
+          <motion.div
+            className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-400"
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            style={{ boxShadow: "0 0 12px rgba(16,185,129,0.4)" }}
           />
-        ))}
-      </div>
+        </div>
 
-      {/* Mastered counter */}
-      <div className="flex items-center gap-4 text-xs font-bold text-muted-foreground">
-        <span>📚 {index + 1} / {words.length}</span>
-        <span className="h-1 w-1 rounded-full bg-border" />
-        <span className="text-gold">⭐ {masteredIds.size} mastered</span>
+        {/* Word dots */}
+        <div className="flex gap-1 flex-wrap justify-center">
+          {words.map((w, i) => (
+            <div
+              key={w.id}
+              className={cn(
+                "h-1.5 rounded-full transition-all duration-500",
+                i === index
+                  ? "bg-primary w-6 shadow-[0_0_8px_hsl(var(--primary)/0.5)]"
+                  : masteredIds.has(w.id)
+                    ? "bg-gold w-3"
+                    : ratedIds.has(w.id)
+                      ? "bg-primary/50 w-3"
+                      : i <= maxUnlocked
+                        ? "bg-muted/40 w-3"
+                        : "bg-muted/15 w-2"
+              )}
+            />
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div className="flex items-center justify-center gap-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+          <span>📚 {ratedIds.size} reviewed</span>
+          <span className="h-1 w-1 rounded-full bg-border" />
+          <span className="text-gold">⭐ {masteredIds.size} mastered</span>
+        </div>
       </div>
 
       {/* ═══ THE 3D FLASHCARD ═══ */}
@@ -203,79 +302,99 @@ export default function FlashcardClient({ words }: { words: EnrichedWord[] }) {
             className="w-full elite-card gradient-shine rounded-[3rem] p-12 md:p-20 flex flex-col items-center justify-center border-2 border-primary/20 shadow-2xl shadow-primary/5 min-h-[420px]"
             style={{ backfaceVisibility: "hidden" }}
           >
+            {/* Word Type Badge — Boldly Colored */}
+            <div className="absolute top-6 left-6">
+              <span className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                typeColor.bg, typeColor.text, typeColor.border
+              )}>
+                <span className={cn("h-2 w-2 rounded-full", typeColor.badge)} />
+                {current.type}
+              </span>
+            </div>
+
             {/* Mastered Badge */}
             {isMastered && (
               <div className="absolute top-6 right-6 bg-gold/10 border border-gold/20 text-gold text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full">
                 ⭐ Mastered
               </div>
             )}
-            <div className="flex flex-col items-center gap-10">
+
+            <div className="flex flex-col items-center gap-8">
               <div className="flex flex-col items-center gap-4">
-                {current.phonetic && (
-                  <span className="text-sm font-mono text-muted-foreground/50 tracking-wide">{current.phonetic}</span>
-                )}
                 <h2 className="text-7xl md:text-9xl font-black text-foreground tracking-tighter italic text-center leading-none">
                   {current.word}
                 </h2>
-                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/40 mt-1">
+                <span className={cn(
+                  "text-sm font-black uppercase tracking-[0.3em]",
+                  typeColor.text
+                )}>
                   {current.type}
                 </span>
               </div>
-              <div className="flex items-center gap-6">
-                <button
-                  onClick={(e) => { e.stopPropagation(); }}
-                  className="h-16 w-16 rounded-[1.25rem] bg-primary/10 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all duration-300 shadow-lg shadow-primary/10 active:scale-90 border border-primary/20"
-                  aria-label="Listen to pronunciation"
-                >
-                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); }}
-                  className="h-16 w-16 rounded-[1.25rem] bg-rose-500/10 flex items-center justify-center text-rose-500 hover:bg-rose-500 hover:text-white transition-all duration-300 shadow-lg shadow-rose-500/10 active:scale-90 border border-rose-500/20"
-                  aria-label="Record your pronunciation"
-                >
-                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                </button>
+
+              {/* Speaker Only — No Mic 🎤 */}
+              <div className="flex items-center gap-4">
+                <VoiceButton word={current.word} size="lg" />
               </div>
+
               <span className="text-[9px] font-black uppercase tracking-[0.5em] text-muted-foreground/25">
-                Tap to Reveal · Space to Flip · ← → Navigate
+                Tap to Reveal · Space to Flip · 1-3 Rate
               </span>
             </div>
           </div>
 
           {/* ─── BACK ─── */}
           <div
-            className="absolute inset-0 w-full elite-card rounded-[3rem] p-8 md:p-12 flex flex-col justify-start border-2 border-gold/15 shadow-2xl min-h-[420px] overflow-y-auto"
+            className="absolute inset-0 w-full elite-card rounded-[3rem] p-6 md:p-10 flex flex-col justify-start border-2 border-gold/15 shadow-2xl min-h-[420px] overflow-y-auto"
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
-            <div className="space-y-5">
-              {/* Header: Type badges */}
+            <div className="space-y-4">
+              {/* Word + Type (boldly colored) */}
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black uppercase tracking-widest bg-muted text-muted-foreground px-3 py-1.5 rounded-full border border-border/50">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-2xl font-black text-foreground">{current.word}</h3>
+                  <VoiceButton word={current.word} size="sm" />
+                  <span className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border",
+                    typeColor.bg, typeColor.text, typeColor.border
+                  )}>
+                    <span className={cn("h-1.5 w-1.5 rounded-full", typeColor.badge)} />
                     {current.type}
                   </span>
-                  <span className="text-[9px] font-black uppercase tracking-widest bg-primary/10 text-primary px-3 py-1.5 rounded-full border border-primary/20" dir="rtl">
-                    {current.aiData.posArabic}
-                  </span>
                 </div>
-                <span className="text-[10px] font-black text-gold italic tracking-wide">الترجمة العربية</span>
+                <span className={cn(
+                  "text-sm font-black border rounded-lg px-2.5 py-1",
+                  typeColor.bg, typeColor.text, typeColor.border
+                )} dir="rtl">
+                  {current.aiData.posArabic}
+                </span>
               </div>
 
               {/* Arabic Translation */}
-              <div className="space-y-2 pb-4 border-b border-border/20">
-                <p className="text-[8px] font-black text-gold/50 uppercase tracking-[0.4em]">المعنى</p>
-                <p className="text-3xl md:text-4xl text-foreground leading-[1.8] font-bold text-right" dir="rtl">
+              <div className="space-y-1.5 pb-3 border-b border-border/20">
+                <p className="text-[8px] font-black text-gold/50 uppercase tracking-[0.4em]">الترجمة</p>
+                <p className="text-2xl md:text-3xl text-foreground leading-[1.8] font-bold text-right" dir="rtl">
                   {current.aiData.translation}
                 </p>
               </div>
 
+              {/* Definition */}
+              <div className="space-y-1.5">
+                <p className="text-[8px] font-black text-primary/50 uppercase tracking-[0.4em]">Definition</p>
+                <p className="text-sm text-foreground/80 leading-relaxed">{current.definition}</p>
+              </div>
+
+              {/* Example Sentence (Video Sentence) */}
+              <div className="space-y-1.5">
+                <p className="text-[8px] font-black text-blue-400/50 uppercase tracking-[0.4em]">Example Sentence</p>
+                <blockquote className="border-l-2 border-primary/30 pl-3 text-sm text-muted-foreground italic leading-relaxed">
+                  &ldquo;{current.example}&rdquo;
+                </blockquote>
+              </div>
+
               {/* Rule of 3 Examples */}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <p className="text-[8px] font-black text-emerald-500/70 uppercase tracking-[0.3em]">أمثلة عملية</p>
                   <div className="flex-1 h-px bg-border/20" />
@@ -283,89 +402,73 @@ export default function FlashcardClient({ words }: { words: EnrichedWord[] }) {
                 </div>
 
                 {current.aiData.examples.map((ex, i) => (
-                  <div key={i} className="group">
-                    <div className="elite-card rounded-2xl p-4 border border-border/30 hover:border-gold/20 transition-colors space-y-2">
-                      <div className="flex items-start gap-3">
-                        <span className="h-6 w-6 rounded-lg bg-gold/10 flex items-center justify-center text-[10px] font-black text-gold shrink-0 mt-0.5">
-                          {i + 1}
-                        </span>
-                        <div className="flex-1 space-y-1.5">
-                          <p className="text-sm text-foreground font-semibold leading-relaxed">{ex.english}</p>
-                          <p className="text-sm text-muted-foreground font-medium leading-relaxed text-right" dir="rtl">{ex.arabic}</p>
-                        </div>
+                  <div key={i} className="elite-card rounded-xl p-3 border border-border/30 hover:border-gold/20 transition-colors space-y-1.5">
+                    <div className="flex items-start gap-2.5">
+                      <span className="h-5 w-5 rounded-md bg-gold/10 flex items-center justify-center text-[9px] font-black text-gold shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-xs text-foreground font-semibold leading-relaxed">{ex.english}</p>
+                        <p className="text-xs text-muted-foreground font-medium leading-relaxed text-right" dir="rtl">{ex.arabic}</p>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Mark as Mastered Button */}
-              <button
-                onClick={(e) => { e.stopPropagation(); handleMastered(); }}
-                disabled={isPending || isMastered}
-                className={cn(
-                  "w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all duration-300 active:scale-95",
-                  isMastered
-                    ? "bg-gold/10 text-gold border border-gold/20 cursor-default"
-                    : "bg-gradient-to-r from-gold to-gold-deep text-white shadow-lg shadow-gold/20 hover:shadow-xl hover:shadow-gold/30 border border-gold/30"
-                )}
-              >
-                {isPending ? "Saving..." : isMastered ? "⭐ Mastered" : "⭐ Mark as Mastered"}
-              </button>
+              {/* AI Tutor */}
+              <div className="flex justify-center pt-2">
+                <AITutorPanel
+                  word={current.word}
+                  type={current.type}
+                  definition={current.definition}
+                  example={current.example}
+                />
+              </div>
             </div>
           </div>
         </motion.div>
       </div>
 
-      {/* ═══ SRS RATING BUTTONS ═══ */}
+      {/* ═══ 3-BUTTON SRS RATING ═══ */}
       <div className="w-full max-w-2xl">
-        <p className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-[0.4em] text-center mb-3">How well did you know this?</p>
-        <div className="grid grid-cols-4 gap-3">
+        <p className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-[0.4em] text-center mb-3">
+          {isFlipped && !isRated
+            ? "How well do you know this word? (1-3)"
+            : isRated
+              ? "✅ Rated — advancing..."
+              : "Flip the card to rate"}
+        </p>
+        <div className="grid grid-cols-3 gap-3">
           {SRS_BUTTONS.map((btn) => (
             <button
               key={btn.rating}
-              onClick={() => handleRate(btn.rating)}
-              disabled={isPending}
+              onClick={(e) => { e.stopPropagation(); handleRate(btn.rating); }}
+              disabled={isPending || !isFlipped || isRated}
               className={cn(
-                "srs-btn py-3 rounded-2xl text-white font-bold text-xs bg-gradient-to-b shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50 border border-white/10",
+                "srs-btn py-4 rounded-2xl text-white font-bold text-sm bg-gradient-to-b shadow-lg transition-all border border-white/10",
+                "disabled:opacity-30 disabled:cursor-not-allowed disabled:scale-100",
+                isFlipped && !isRated
+                  ? `hover:scale-105 hover:shadow-xl active:scale-95 ${btn.glow}`
+                  : "",
                 btn.color
               )}
             >
-              <span className="block text-lg mb-0.5">{btn.icon}</span>
-              {btn.label}
+              <span className="block text-xl mb-1">{btn.icon}</span>
+              <span className="block font-black text-sm">{btn.label}</span>
+              <span className="block text-[10px] opacity-60 mt-0.5">{btn.sub}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* ═══ NAVIGATION CONTROLS ═══ */}
-      <div className="flex items-center gap-12 pt-2">
-        <button
-          onClick={prev}
-          className="h-16 w-16 rounded-2xl elite-card flex items-center justify-center border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-all group active:scale-90 shadow-lg"
-          aria-label="Previous word"
-        >
-          <svg className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-
-        <div className="text-center min-w-[100px]">
-          <p className="text-2xl font-black text-foreground tabular-nums tracking-tight">
-            {index + 1} <span className="text-muted-foreground/15 mx-1">/</span> {words.length}
-          </p>
-          <p className="text-[8px] font-black uppercase tracking-[0.5em] text-muted-foreground/30 mt-1">Vocabulary</p>
-        </div>
-
-        <button
-          onClick={next}
-          className="h-16 w-16 rounded-2xl elite-card flex items-center justify-center border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-all group active:scale-90 shadow-lg"
-          aria-label="Next word"
-        >
-          <svg className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+      {/* Footer */}
+      <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest">
+        <kbd className="px-1.5 py-0.5 rounded border border-border/30 font-mono text-[9px]">Space</kbd>
+        <span>flip</span>
+        <span className="mx-1">·</span>
+        <kbd className="px-1.5 py-0.5 rounded border border-border/30 font-mono text-[9px]">1-3</kbd>
+        <span>rate</span>
       </div>
     </div>
   );

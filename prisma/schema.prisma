@@ -123,6 +123,7 @@ model User {
   ledTeams               Team[]                     @relation("TeamLeader")
   team                   Team?                      @relation("TeamMembers", fields: [teamId], references: [id])
   teamId                 String?                    @map("team_id")
+  treasureChestClaims    TreasureChestClaim[]
 
   @@map("users")
 }
@@ -247,10 +248,11 @@ model UserUnitProgress {
   id          String     @id @default(uuid())
   userId      String     @map("user_id")
   unitId      Int        @map("unit_id")
-  status      UnitStatus @default(not_started)
-  score       Int        @default(0) // best score 0–100
-  startedAt   DateTime?  @map("started_at")
-  completedAt DateTime?  @map("completed_at")
+  status           UnitStatus @default(not_started)
+  score            Int        @default(0) // best score 0–100
+  currentWordIndex Int        @default(0) @map("current_word_index") // user's position in A-Z word list
+  startedAt        DateTime?  @map("started_at")
+  completedAt      DateTime?  @map("completed_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   unit Unit @relation(fields: [unitId], references: [id])
@@ -501,4 +503,24 @@ model Team {
 
   @@index([leaderId])
   @@map("teams")
+}
+
+// ─────────────────────────────────────────────
+//  ELITE REWARDS — Treasure Chest Milestones
+// ─────────────────────────────────────────────
+
+/// Tracks which milestone chests a user has claimed.
+/// Milestones fire every 10 units: 10, 20, 30, ..., 180.
+model TreasureChestClaim {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  milestone Int      // 10, 20, 30, … 180
+  xpAwarded Int      @default(500) @map("xp_awarded")
+  claimedAt DateTime @default(now()) @map("claimed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, milestone])
+  @@index([userId])
+  @@map("treasure_chest_claims")
 }

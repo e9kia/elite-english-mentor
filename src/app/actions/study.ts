@@ -1,54 +1,63 @@
 "use server";
 // =====================================================================
 //  src/app/actions/study.ts
-//  Server Actions for study progress — called directly from Client Components.
-//  No API route needed: Next.js 14 handles the RPC automatically.
+//  Server Actions for study progress — Foundation Protocol
+//  3-Button SRS: Unknown(1) / Medium(2) / Strong(3)
+//  + saveWordProgress + completeUnit
+//  Designed by Ali Jitam ❤️
 // =====================================================================
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-// ── SRS rating scale ──────────────────────────────────────────────────────────
-// 1 = Again  (forgot completely)
-// 2 = Hard   (remembered with great difficulty)
-// 3 = Good   (remembered correctly)
-// 4 = Easy   (perfect recall, effortless)
+// ── SRS rating scale (SIMPLIFIED — 3 buttons) ────────────────────────
+// 1 = New/Unknown  (high frequency review)
+// 2 = Medium       (moderate frequency review)
+// 3 = Strong       (spaced repetition, long-term)
 
-export type SrsRating = 1 | 2 | 3 | 4;
+export type SrsRating = 1 | 2 | 3;
 
 interface RateWordInput {
   wordId:   string;
   rating:   SrsRating;
-  userId?:  string;       // optional: falls back to first admin in dev
+  userId?:  string;
+  unitId?:  number;        // for auto-advancing currentWordIndex
 }
 
-// ── SM-2 calculation ─────────────────────────────────────────────────────────
+// ── SM-2 adapted for 3-button system ─────────────────────────────────
 
 function calcSm2(
   easeFactor: number,
   interval:   number,
   rating:     SrsRating
 ): { easeFactor: number; interval: number; nextReviewAt: Date } {
-  // Ease factor adjustment (SM-2 formula)
-  const newEF = Math.max(
-    1.3,
-    easeFactor + (0.1 - (5 - rating) * (0.08 + (5 - rating) * 0.02))
-  );
-
+  let newEF: number;
   let newInterval: number;
+
   if (rating === 1) {
-    // Forgot — reset to 1 day
-    newInterval = 1;
+    // Unknown — reset to very short interval, high frequency
+    newEF = Math.max(1.3, easeFactor - 0.3);
+    newInterval = 1; // review tomorrow
   } else if (rating === 2) {
-    // Hard — small step forward
-    newInterval = Math.max(1, Math.round(interval * 1.2));
-  } else if (interval === 0) {
-    // First correct answer
-    newInterval = 1;
-  } else if (interval === 1) {
-    newInterval = 6;
+    // Medium — moderate step forward
+    newEF = Math.max(1.3, easeFactor - 0.1);
+    if (interval === 0) {
+      newInterval = 2;
+    } else if (interval <= 2) {
+      newInterval = 4;
+    } else {
+      newInterval = Math.round(interval * 1.5);
+    }
   } else {
-    newInterval = Math.round(interval * newEF);
+    // Strong — full spaced repetition, long-term
+    newEF = Math.min(3.0, easeFactor + 0.15);
+    if (interval === 0) {
+      newInterval = 4;
+    } else if (interval <= 4) {
+      newInterval = 10;
+    } else {
+      newInterval = Math.round(interval * newEF);
+    }
   }
 
   const nextReviewAt = new Date();
@@ -57,19 +66,20 @@ function calcSm2(
   return { easeFactor: newEF, interval: newInterval, nextReviewAt };
 }
 
-// ── Mastery level calculation ────────────────────────────────────────────────
+// ── Mastery level calculation ────────────────────────────────────────
 // 0 = unseen → 1 = learning → 2 = familiar → 3 = mastered
 
-function calcMastery(timesCorrect: number, timesWrong: number): number {
+function calcMastery(timesCorrect: number, timesWrong: number, rating: SrsRating): number {
+  if (rating === 3 && timesCorrect >= 1) return 3; // Strong = instant mastery path
   if (timesCorrect === 0) return 0;
   if (timesCorrect < 3)   return 1;
-  if (timesCorrect < 8)   return 2;
+  if (timesCorrect < 6)   return 2;
   return 3;
 }
 
-// ── Main action ──────────────────────────────────────────────────────────────
+// ── Main rate action ─────────────────────────────────────────────────
 
-export async function rateWord({ wordId, rating, userId }: RateWordInput) {
+export async function rateWord({ wordId, rating, userId, unitId }: RateWordInput) {
   // Resolve userId — fall back to first admin in dev
   let resolvedUserId = userId;
   if (!resolvedUserId) {
@@ -77,7 +87,7 @@ export async function rateWord({ wordId, rating, userId }: RateWordInput) {
     resolvedUserId = admin?.id ?? "dev-user-id";
   }
 
-  const isCorrect = rating >= 3;
+  const isCorrect = rating >= 2; // Medium and Strong count as correct
 
   // Fetch existing mastery record (if any)
   const existing = await prisma.userWordMastery.findUnique({
@@ -93,7 +103,7 @@ export async function rateWord({ wordId, rating, userId }: RateWordInput) {
 
   const newTimesCorrect = prevCorrect + (isCorrect ? 1 : 0);
   const newTimesWrong   = prevWrong   + (isCorrect ? 0 : 1);
-  const masteryLevel    = calcMastery(newTimesCorrect, newTimesWrong);
+  const masteryLevel    = calcMastery(newTimesCorrect, newTimesWrong, rating);
 
   await prisma.userWordMastery.upsert({
     where:  { userId_wordId: { userId: resolvedUserId, wordId } },
@@ -121,8 +131,8 @@ export async function rateWord({ wordId, rating, userId }: RateWordInput) {
     },
   });
 
-  // Award XP
-  const xp = rating === 4 ? 10 : rating === 3 ? 6 : rating === 2 ? 3 : 1;
+  // Award XP based on 3-button system
+  const xp = rating === 3 ? 10 : rating === 2 ? 5 : 2;
   await prisma.xpEvent.create({
     data: {
       userId:      resolvedUserId,
@@ -143,4 +153,90 @@ export async function rateWord({ wordId, rating, userId }: RateWordInput) {
   revalidatePath("/dashboard");
 
   return { masteryLevel, nextReviewAt, xpEarned: xp };
+}
+
+// ── Save word progress (advances currentWordIndex) ───────────────────
+
+export async function saveWordProgress({
+  userId,
+  unitId,
+  newIndex,
+}: {
+  userId?: string;
+  unitId: number;
+  newIndex: number;
+}) {
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    const admin = await prisma.user.findFirst({ where: { role: "admin" } });
+    resolvedUserId = admin?.id ?? "dev-user-id";
+  }
+
+  await prisma.userUnitProgress.upsert({
+    where: { userId_unitId: { userId: resolvedUserId, unitId } },
+    create: {
+      userId: resolvedUserId,
+      unitId,
+      status: "in_progress",
+      currentWordIndex: newIndex,
+      startedAt: new Date(),
+    },
+    update: {
+      currentWordIndex: newIndex,
+      status: "in_progress",
+    },
+  });
+}
+
+// ── Complete unit (marks unit as completed, unlocks next) ────────────
+
+export async function completeUnit({
+  userId,
+  unitId,
+}: {
+  userId?: string;
+  unitId: number;
+}) {
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    const admin = await prisma.user.findFirst({ where: { role: "admin" } });
+    resolvedUserId = admin?.id ?? "dev-user-id";
+  }
+
+  // Mark this unit as completed
+  await prisma.userUnitProgress.upsert({
+    where: { userId_unitId: { userId: resolvedUserId, unitId } },
+    create: {
+      userId: resolvedUserId,
+      unitId,
+      status: "completed",
+      completedAt: new Date(),
+      startedAt: new Date(),
+    },
+    update: {
+      status: "completed",
+      completedAt: new Date(),
+    },
+  });
+
+  // Award unit_complete XP
+  await prisma.xpEvent.create({
+    data: {
+      userId: resolvedUserId,
+      eventType: "unit_complete",
+      xpEarned: 50,
+      referenceId: String(unitId),
+    },
+  });
+
+  // Update leaderboard
+  await prisma.leaderboardSnapshot.upsert({
+    where: { userId: resolvedUserId },
+    create: { userId: resolvedUserId, totalXp: 50 },
+    update: { totalXp: { increment: 50 } },
+  });
+
+  revalidatePath("/dashboard");
+
+  return { completed: true, xpEarned: 50 };
 }

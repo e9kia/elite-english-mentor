@@ -1,7 +1,24 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// =====================================================================
+//  src/lib/gemini.ts
+//  Gemini AI integration — Model chain with timeout + fallback
+//  Model chain: gemini-2.5-flash → gemini-2.0-flash-lite → gemini-2.0-flash
+//  Designed by Ali Jitam ❤️
+// =====================================================================
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateLocalFallback } from "./fallback";
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+
+// Updated model chain — confirmed working models for v2/v3 API keys
+const MODEL_CHAIN = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+];
+
+const AI_TIMEOUT_MS = 8000; // 8 second max per attempt
 
 export interface FlashcardAIData {
   translation: string;       // Arabic translation
@@ -12,49 +29,78 @@ export interface FlashcardAIData {
   }[];
 }
 
-export async function translateToArabic(word: string): Promise<string> {
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("GEMINI_API_KEY is missing. Returning fallback.");
-    return `[AI Offline] ${word}`;
+/**
+ * Wraps a promise with a timeout. Rejects if the promise takes too long.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`AI timeout after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
+/**
+ * Try generating content across the model chain with timeout.
+ * Returns null if all models fail.
+ */
+async function tryModelChain(prompt: string): Promise<string | null> {
+  if (!GEMINI_API_KEY) {
+    console.warn("GEMINI_API_KEY is missing.");
+    return null;
   }
-  try {
-    const prompt = `You are an expert English-Arabic translator for a premium learning platform.
+
+  for (const modelName of MODEL_CHAIN) {
+    try {
+      console.log(`[gemini] Trying model: ${modelName}`);
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await withTimeout(
+        model.generateContent(prompt),
+        AI_TIMEOUT_MS
+      );
+      const text = result.response.text().trim();
+      console.log(`[gemini] Success with model: ${modelName}`);
+      return text;
+    } catch (err) {
+      const msg = String(err);
+      console.warn(`[gemini] ${modelName} failed: ${msg.slice(0, 200)}`);
+      // Don't retry on quota errors
+      if (msg.includes("429") || msg.includes("quota")) break;
+    }
+  }
+
+  return null;
+}
+
+export async function translateToArabic(word: string): Promise<string> {
+  const prompt = `You are an expert English-Arabic translator for a premium learning platform.
 Translate the English word "${word}" to Arabic.
 Provide the Arabic translation followed by a very brief Arabic explanation of the meaning.
 Example format: "تفاحة - فاكهة مستديرة حمراء أو خضراء"
 Return ONLY the Arabic text, no English, no numbering.`;
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text().trim();
-  } catch (error) {
-    console.error(`Gemini translation failed for ${word}:`, error);
-    return `[AI Error] ${word}`;
-  }
+
+  const text = await tryModelChain(prompt);
+  if (text) return text;
+
+  // Fallback
+  return generateLocalFallback(word, "other", word, "").translation;
 }
 
 /**
  * Generate RICH flashcard data for a word: Arabic translation, POS in Arabic,
  * and exactly 3 practical usage examples in both English and Arabic.
- * This is Ali Jitam's "Rule of 3" — the core value of the platform.
+ * Falls back to local database if AI fails.
  */
-export async function generateFlashcardData(word: string, type: string): Promise<FlashcardAIData> {
-  const fallback: FlashcardAIData = {
-    translation: `[AI Offline] ${word}`,
-    posArabic: type,
-    examples: [
-      { english: `The ${word} is important.`, arabic: `الـ ${word} مهم.` },
-      { english: `I learned about ${word}.`, arabic: `تعلمت عن ${word}.` },
-      { english: `This ${word} is useful.`, arabic: `هذا الـ ${word} مفيد.` },
-    ],
-  };
+export async function generateFlashcardData(
+  word: string,
+  type: string,
+  definition?: string,
+  example?: string
+): Promise<FlashcardAIData> {
+  const fallback = generateLocalFallback(word, type, definition ?? word, example ?? "");
 
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("GEMINI_API_KEY is missing. Returning flashcard fallback.");
-    return fallback;
-  }
-
-  try {
-    const prompt = `You are an expert English-Arabic language instructor for the premium platform "Elite English Mentor" by Ali Jitam.
+  const prompt = `You are an expert English-Arabic language instructor for the premium platform "Elite English Mentor" by Ali Jitam.
 
 For the English word "${word}" (${type}), provide:
 1. A clear Arabic translation
@@ -64,13 +110,13 @@ For the English word "${word}" (${type}), provide:
 Return ONLY a valid JSON object in this exact format (no markdown, no code blocks):
 {"translation":"الترجمة العربية","posArabic":"اسم","examples":[{"english":"Example sentence 1.","arabic":"جملة المثال 1."},{"english":"Example sentence 2.","arabic":"جملة المثال 2."},{"english":"Example sentence 3.","arabic":"جملة المثال 3."}]}`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text().trim();
+  const text = await tryModelChain(prompt);
+  if (!text) return fallback;
+
+  try {
     const jsonStr = text.replace(/```json\n?|```\n?/g, "").trim();
     const parsed = JSON.parse(jsonStr);
 
-    // Validate structure
     if (parsed.translation && Array.isArray(parsed.examples) && parsed.examples.length >= 3) {
       return {
         translation: parsed.translation,
@@ -79,23 +125,17 @@ Return ONLY a valid JSON object in this exact format (no markdown, no code block
       };
     }
     return fallback;
-  } catch (error) {
-    console.error(`Flashcard data generation failed for ${word}:`, error);
+  } catch {
+    console.error(`[gemini] JSON parse failed for ${word}`);
     return fallback;
   }
 }
 
 export async function batchTranslateToArabic(words: string[]): Promise<Record<string, string>> {
   if (words.length === 0) return {};
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("GEMINI_API_KEY is missing. Returning batch fallback.");
-    const fallback: Record<string, string> = {};
-    words.forEach(w => fallback[w] = `[AI Offline] ${w}`);
-    return fallback;
-  }
-  try {
-    const wordList = words.map((w, i) => `${i + 1}. ${w}`).join("\n");
-    const prompt = `You are an expert English-Arabic translator for a premium learning platform called "Elite English Mentor".
+
+  const wordList = words.map((w, i) => `${i + 1}. ${w}`).join("\n");
+  const prompt = `You are an expert English-Arabic translator for a premium learning platform called "Elite English Mentor".
 Translate these English words to Arabic. For each word, provide a high-quality translation that includes the main Arabic meaning and a very brief explanation in Arabic.
 
 Words to translate:
@@ -104,18 +144,27 @@ ${wordList}
 Return ONLY a valid JSON object where keys are the exact English words and values are Arabic translations.
 Example format: {"apple": "تفاحة - فاكهة مستديرة حمراء أو خضراء", "family": "عائلة - مجموعة من الأشخاص المرتبطين"}
 Do NOT wrap in markdown code blocks. Return raw JSON only.`;
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text().trim();
-    // Remove markdown code blocks if present
+
+  const text = await tryModelChain(prompt);
+  if (!text) {
+    // Fallback: return translations from local dictionary
+    const result: Record<string, string> = {};
+    words.forEach(w => {
+      const fb = generateLocalFallback(w, "other", w, "");
+      result[w] = fb.translation;
+    });
+    return result;
+  }
+
+  try {
     const jsonStr = text.replace(/```json\n?|```\n?/g, "").trim();
     return JSON.parse(jsonStr);
-  } catch (error) {
-    console.error("Batch translation failed:", error);
-    // Fallback: return empty translations so the import doesn't crash
-    const fallback: Record<string, string> = {};
-    words.forEach(w => fallback[w] = `[AI Error] ${w}`);
-    return fallback;
+  } catch {
+    const result: Record<string, string> = {};
+    words.forEach(w => {
+      const fb = generateLocalFallback(w, "other", w, "");
+      result[w] = fb.translation;
+    });
+    return result;
   }
 }
-

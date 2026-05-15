@@ -27,10 +27,9 @@ const SRS_BUTTONS: {
   rating: SrsRating; label: string; sub: string;
   color: string; bg: string; border: string;
 }[] = [
-  { rating: 1, label: "Again", sub: "<1d",  color: "text-rose-300",    bg: "bg-rose-500/10",   border: "border-rose-500/30"   },
-  { rating: 2, label: "Hard",  sub: "~2d",  color: "text-amber-300",   bg: "bg-amber-500/10",  border: "border-amber-500/30"  },
-  { rating: 3, label: "Good",  sub: "~4d",  color: "text-emerald-300", bg: "bg-emerald-500/10",border: "border-emerald-500/30" },
-  { rating: 4, label: "Easy",  sub: "~7d",  color: "text-indigo-300",  bg: "bg-indigo-500/10", border: "border-indigo-500/30"  },
+  { rating: 1, label: "Unknown",  sub: "Review soon",   color: "text-rose-300",    bg: "bg-rose-500/10",    border: "border-rose-500/30"    },
+  { rating: 2, label: "Medium",   sub: "Getting there", color: "text-amber-300",   bg: "bg-amber-500/10",   border: "border-amber-500/30"   },
+  { rating: 3, label: "Strong",   sub: "Mastered!",     color: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
 ];
 
 const TYPE_COLORS: Record<string, string> = {
@@ -180,7 +179,6 @@ export default function FlashcardDeck({
         if (e.key === "1") handleRate(1);
         if (e.key === "2") handleRate(2);
         if (e.key === "3") handleRate(3);
-        if (e.key === "4") handleRate(4);
       }
     };
     window.addEventListener("keydown", handler);
@@ -321,7 +319,7 @@ export default function FlashcardDeck({
                   <p className="text-[11px] text-muted-foreground text-center mb-2">
                     How well did you remember this? <span className="opacity-40 hidden sm:inline">(1–4)</span>
                   </p>
-                  <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                     {SRS_BUTTONS.map((btn) => (
                       <button
                         key={btn.rating}
@@ -362,7 +360,7 @@ export default function FlashcardDeck({
           <kbd className="px-1.5 py-0.5 rounded border border-border font-mono text-[10px]">Space</kbd>
           <span className="opacity-50">flip</span>
           <span className="opacity-30 mx-0.5">|</span>
-          <kbd className="px-1.5 py-0.5 rounded border border-border font-mono text-[10px]">1-4</kbd>
+          <kbd className="px-1.5 py-0.5 rounded border border-border font-mono text-[10px]">1-3</kbd>
           <span className="opacity-50">rate</span>
         </div>
       </div>

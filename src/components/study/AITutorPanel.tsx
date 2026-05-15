@@ -1,6 +1,10 @@
 "use client";
-// src/components/study/AITutorPanel.tsx
-// Slide-up panel powered by Gemini. Three modes: Explain / Deep Dive / Story.
+// =====================================================================
+//  src/components/study/AITutorPanel.tsx
+//  Slide-up panel powered by Gemini with LOCAL FALLBACK
+//  Never shows "AI Unavailable" — falls back to local data seamlessly
+//  Designed by Ali Jitam ❤️
+// =====================================================================
 
 import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,7 +17,7 @@ interface AITutorPanelProps {
   example:    string;
 }
 
-// ── Type-safe response shapes ────────────────────────────────────────────────
+// ── Type-safe response shapes ────────────────────────────────────────
 
 interface AiData {
   meaning: string;
@@ -22,12 +26,58 @@ interface AiData {
   context_engine: { style: string; english: string; arabic: string }[];
 }
 
-// ── Renderers ─────────────────────────────────────────────────────────────────
+// ── Word Type → Color (Nouns=Orange, Verbs=Blue, Adjectives=Purple) ──
+const TYPE_BADGE_COLORS: Record<string, string> = {
+  noun:        "bg-orange-500 text-white",
+  verb:        "bg-blue-500 text-white",
+  adjective:   "bg-purple-500 text-white",
+  adverb:      "bg-teal-500 text-white",
+  preposition: "bg-pink-500 text-white",
+  phrase:      "bg-cyan-500 text-white",
+  other:       "bg-slate-500 text-white",
+};
 
-function MentorView({ data, englishWord }: { data: AiData; englishWord: string }) {
-  // We apply dir="rtl" and appropriate Arabic fonts
+// ── Arabic word type mapping for local fallback ──
+const TYPE_ARABIC: Record<string, string> = {
+  noun: "اسم", verb: "فعل", adjective: "صفة", adverb: "ظرف",
+  preposition: "حرف جر", pronoun: "ضمير", conjunction: "حرف عطف",
+  phrase: "عبارة", other: "أخرى",
+};
+
+// ── Generate local fallback when AI fails ────────────────────────────
+function generateLocalFallback(word: string, type: string, definition: string, example: string): AiData {
+  const arabicType = TYPE_ARABIC[type.toLowerCase()] ?? TYPE_ARABIC.other;
+  return {
+    meaning: `${definition}`,
+    story: `تعلمت كلمة "${word}" الجديدة اليوم. هذه الكلمة من نوع ${arabicType} وتستخدم كثيراً في اللغة الإنجليزية. مثال: ${example}`,
+    mnemonic: `تذكر كلمة "${word}" من خلال ربطها بالمعنى والسياق الذي تستخدم فيه عادةً`,
+    context_engine: [
+      { style: "Academic",     english: `The concept of "${word}" is fundamental in academic discourse.`, arabic: `مفهوم "${word}" أساسي في الخطاب الأكاديمي.` },
+      { style: "Casual",       english: example || `I use the word "${word}" every day.`,                 arabic: `أستخدم كلمة "${word}" كل يوم.` },
+      { style: "Professional", english: `Understanding "${word}" is essential for professional success.`, arabic: `فهم "${word}" ضروري للنجاح المهني.` },
+    ],
+  };
+}
+
+// ── Renderers ─────────────────────────────────────────────────────────
+
+function MentorView({ data, englishWord, wordType, isOffline }: { data: AiData; englishWord: string; wordType: string; isOffline: boolean }) {
+  const badgeColor = TYPE_BADGE_COLORS[wordType.toLowerCase()] ?? TYPE_BADGE_COLORS.other;
+
   return (
     <div className="space-y-6" dir="rtl">
+      {/* Word Type Badge — Boldly Colored */}
+      <div className="flex items-center gap-2 justify-end" dir="ltr">
+        <span className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest", badgeColor)}>
+          {wordType}
+        </span>
+        {isOffline && (
+          <span className="px-2 py-0.5 rounded-full text-[8px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+            Local Mode
+          </span>
+        )}
+      </div>
+
       {/* Meaning & Mnemonic */}
       <div className="space-y-3">
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
@@ -49,9 +99,8 @@ function MentorView({ data, englishWord }: { data: AiData; englishWord: string }
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">📖 قصة قصيرة</p>
         <blockquote className="text-base text-foreground leading-loose glass rounded-xl p-5 border border-primary/20 relative">
-          <div className="absolute top-3 right-4 text-4xl text-primary/20 font-serif leading-none">"</div>
+          <div className="absolute top-3 right-4 text-4xl text-primary/20 font-serif leading-none">&ldquo;</div>
           <p className="pr-4 relative z-10 font-arabic">
-            {/* Highlight the english word if it appears in the arabic story */}
             {data.story.split(new RegExp(`(${englishWord})`, 'gi')).map((part, i) => 
               part.toLowerCase() === englishWord.toLowerCase() 
                 ? <span key={i} className="text-primary font-bold font-sans px-1" dir="ltr">{part}</span>
@@ -80,18 +129,17 @@ function MentorView({ data, englishWord }: { data: AiData; englishWord: string }
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── Main Component ────────────────────────────────────────────────────
 
 export default function AITutorPanel({ word, type, definition, example }: AITutorPanelProps) {
-  const [open,    setOpen]    = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
-  const [cache,   setCache]   = useState<AiData | null>(null);
+  const [open,      setOpen]      = useState(false);
+  const [loading,   setLoading]   = useState(false);
+  const [cache,     setCache]     = useState<AiData | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
 
   const fetchExplanation = useCallback(async () => {
     if (cache) return; // already fetched
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch("/api/ai/explain", {
         method:  "POST",
@@ -101,8 +149,13 @@ export default function AITutorPanel({ word, type, definition, example }: AITuto
       const json = await res.json();
       if (!res.ok) throw new Error(json.detail ?? json.error ?? "AI failed");
       setCache(json.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to get AI response");
+      setIsOffline(false);
+    } catch {
+      // ── SAFETY NET: Never show errors, use local fallback ──
+      console.warn(`[AITutor] Falling back to local for: ${word}`);
+      const fallback = generateLocalFallback(word, type, definition, example);
+      setCache(fallback);
+      setIsOffline(true);
     } finally {
       setLoading(false);
     }
@@ -186,21 +239,6 @@ export default function AITutorPanel({ word, type, definition, example }: AITuto
                       <div key={i} className="h-20 rounded-xl shimmer" />
                     ))}
                   </div>
-                ) : error ? (
-                  <div className="flex flex-col items-center gap-3 py-10 text-center">
-                    <span className="text-3xl">🤖</span>
-                    <p className="font-semibold text-foreground">AI Unavailable</p>
-                    <p className="text-sm text-muted-foreground max-w-xs">{error}</p>
-                    {error.includes("GEMINI_API_KEY") && (
-                      <p className="text-xs text-muted-foreground/60 max-w-xs">
-                        Add <code className="text-primary">GEMINI_API_KEY=your_key</code> to your .env file and restart the server.
-                        <br />Get a free key at{" "}
-                        <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="text-primary underline">
-                          aistudio.google.com
-                        </a>
-                      </p>
-                    )}
-                  </div>
                 ) : cache ? (
                   <AnimatePresence mode="wait">
                     <motion.div
@@ -210,7 +248,7 @@ export default function AITutorPanel({ word, type, definition, example }: AITuto
                       exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <MentorView data={cache} englishWord={word} />
+                      <MentorView data={cache} englishWord={word} wordType={type} isOffline={isOffline} />
                     </motion.div>
                   </AnimatePresence>
                 ) : null}

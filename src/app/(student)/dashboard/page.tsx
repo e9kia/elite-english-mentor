@@ -1,19 +1,41 @@
 "use client";
 
+// =====================================================================
+//  Dashboard — Foundation Protocol: Vertical Duolingo-Style Path
+//  180-unit continuous journey with cross-level gating
+//  Designed by Ali Jitam ❤️
+// =====================================================================
+
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
+// ── Level Metadata ───────────────────────────────────────────────────
 const LEVELS = [
-  { number: 1, title: "Essential 1", color: "from-emerald-500 to-teal-500", glow: "shadow-emerald-500/20", icon: "🌱", description: "Foundational English vocabulary for beginners." },
-  { number: 2, title: "Essential 2", color: "from-blue-500 to-cyan-500", glow: "shadow-blue-500/20", icon: "🚀", description: "Expanding core concepts and daily interactions." },
-  { number: 3, title: "Essential 3", color: "from-violet-500 to-fuchsia-500", glow: "shadow-violet-500/20", icon: "💎", description: "Mastering common expressions and structures." },
-  { number: 4, title: "Intermediate 1", color: "from-amber-500 to-orange-500", glow: "shadow-amber-500/20", icon: "⚔️", description: "Complex grammar and professional terminology." },
-  { number: 5, title: "Intermediate 2", color: "from-rose-500 to-pink-500", glow: "shadow-rose-500/20", icon: "🔥", description: "Nuanced communication and abstract concepts." },
-  { number: 6, title: "Advanced", color: "from-slate-700 to-slate-900", glow: "shadow-slate-500/20", icon: "👑", description: "Academic proficiency and master-level vocabulary." },
+  { number: 1, title: "Essential 1",     color: "from-emerald-500 to-teal-500",   glow: "shadow-emerald-500/20", icon: "🌱", accent: "emerald" },
+  { number: 2, title: "Essential 2",     color: "from-blue-500 to-cyan-500",      glow: "shadow-blue-500/20",    icon: "🚀", accent: "blue"    },
+  { number: 3, title: "Essential 3",     color: "from-violet-500 to-fuchsia-500", glow: "shadow-violet-500/20",  icon: "💎", accent: "violet"  },
+  { number: 4, title: "Intermediate 1",  color: "from-amber-500 to-orange-500",   glow: "shadow-amber-500/20",   icon: "⚔️", accent: "amber"   },
+  { number: 5, title: "Intermediate 2",  color: "from-rose-500 to-pink-500",      glow: "shadow-rose-500/20",    icon: "🔥", accent: "rose"    },
+  { number: 6, title: "Advanced",        color: "from-slate-700 to-slate-900",    glow: "shadow-slate-500/20",   icon: "👑", accent: "slate"   },
 ];
+
+interface UnitNode {
+  id: number;
+  number: number;
+  title: string;
+  levelNumber: number;
+  levelTitle: string;
+  levelIcon: string;
+  levelColor: string;
+  wordCount: number;
+  isUnlocked: boolean;
+  isCompleted: boolean;
+  isActive: boolean;  // current unit to work on
+  currentWordIndex: number;
+}
 
 interface FriendData {
   friendshipId: string;
@@ -33,21 +55,20 @@ function isOnline(lastSeen: string | null): boolean {
 
 function getGreeting(): { greeting: string; emoji: string; subtitle: string } {
   const hour = new Date().getHours();
-  if (hour < 6)  return { greeting: "Night Owl", emoji: "🦉", subtitle: "Burning the midnight oil? Elite." };
-  if (hour < 12) return { greeting: "Good Morning", emoji: "☀️", subtitle: "A fresh start to master new words." };
-  if (hour < 17) return { greeting: "Good Afternoon", emoji: "🔥", subtitle: "Keep the momentum going strong." };
-  if (hour < 21) return { greeting: "Good Evening", emoji: "🌙", subtitle: "Evening sessions build lasting habits." };
+  if (hour < 6)  return { greeting: "Night Owl",       emoji: "🦉", subtitle: "Burning the midnight oil? Elite." };
+  if (hour < 12) return { greeting: "Good Morning",    emoji: "☀️", subtitle: "A fresh start to master new words." };
+  if (hour < 17) return { greeting: "Good Afternoon",  emoji: "🔥", subtitle: "Keep the momentum going strong." };
+  if (hour < 21) return { greeting: "Good Evening",    emoji: "🌙", subtitle: "Evening sessions build lasting habits." };
   return { greeting: "Good Night", emoji: "✨", subtitle: "One more unit before rest?" };
 }
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const [activeLevel, setActiveLevel] = useState(1);
-  const [levelsData, setLevelsData] = useState<any[]>([]);
+  const [unitNodes, setUnitNodes] = useState<UnitNode[]>([]);
   const [friends, setFriends] = useState<FriendData[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalXp, setTotalXp] = useState(0);
-  const [streak, setStreak] = useState(0);
+  const [wordsLearned, setWordsLearned] = useState(0);
 
   const { greeting, emoji, subtitle } = getGreeting();
 
@@ -58,10 +79,68 @@ export default function DashboardPage() {
           fetch("/api/student/progress"),
           fetch("/api/social/friends"),
         ]);
+
         if (progRes.ok) {
           const data = await progRes.json();
-          setLevelsData(data.levels || []);
+          setTotalXp(data.totalXp || 0);
+          setWordsLearned(data.wordsLearned || 0);
+
+          // ── Build the 180-unit linear path ──
+          const nodes: UnitNode[] = [];
+          const levels = data.levels || [];
+
+          // Flatten all units across all levels in order
+          for (const level of levels) {
+            const levelMeta = LEVELS.find(l => l.number === level.number);
+            for (const unit of level.units || []) {
+              nodes.push({
+                id: unit.id,
+                number: unit.number,
+                title: unit.title,
+                levelNumber: level.number,
+                levelTitle: levelMeta?.title ?? `Level ${level.number}`,
+                levelIcon: levelMeta?.icon ?? "📚",
+                levelColor: levelMeta?.color ?? "from-gray-500 to-gray-600",
+                wordCount: unit.wordCount || unit._count?.words || 0,
+                isUnlocked: false,
+                isCompleted: unit.progress?.status === "completed",
+                isActive: false,
+                currentWordIndex: unit.progress?.currentWordIndex ?? 0,
+              });
+            }
+          }
+
+          // ── Apply Cross-Level Gating Logic ──
+          // Unit 0 is always unlocked. Unit N is unlocked only if Unit N-1 is completed.
+          let foundActive = false;
+          for (let i = 0; i < nodes.length; i++) {
+            if (i === 0) {
+              nodes[i].isUnlocked = true;
+            } else {
+              nodes[i].isUnlocked = nodes[i - 1].isCompleted;
+            }
+
+            // A completed unit is always "unlocked"
+            if (nodes[i].isCompleted) {
+              nodes[i].isUnlocked = true;
+            }
+
+            // Find the first unlocked, non-completed unit = active
+            if (!foundActive && nodes[i].isUnlocked && !nodes[i].isCompleted && nodes[i].wordCount > 0) {
+              nodes[i].isActive = true;
+              foundActive = true;
+            }
+          }
+
+          // If nothing found active yet (all completed or first time), make the first available active
+          if (!foundActive) {
+            const firstAvailable = nodes.find(n => n.isUnlocked && !n.isCompleted);
+            if (firstAvailable) firstAvailable.isActive = true;
+          }
+
+          setUnitNodes(nodes);
         }
+
         if (friendRes.ok) {
           const data = await friendRes.json();
           setFriends(data.friends || []);
@@ -75,27 +154,30 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  const currentLevelData = levelsData.find(l => l.number === activeLevel);
-  const totalUnits = levelsData.reduce((sum: number, l: any) => sum + (l.units?.length || 0), 0);
+  // Computed stats
+  const completedCount = unitNodes.filter(n => n.isCompleted).length;
+  const activeNode = unitNodes.find(n => n.isActive);
+  const totalUnits = unitNodes.length;
+  const overallProgress = totalUnits > 0 ? Math.round((completedCount / totalUnits) * 100) : 0;
 
   return (
     <div className="flex gap-8 pb-24 animate-fade-in relative">
       {/* Main Content Area */}
       <div className="flex-1 space-y-10 min-w-0">
 
-        {/* ═══ PREMIUM HERO SECTION ═══ */}
+        {/* ═══ HERO SECTION: "Next Step" ═══ */}
         <div className="elite-card rounded-[3rem] p-8 md:p-12 relative overflow-hidden gradient-shine border border-gold/10">
           {/* Floating Glow Orbs */}
           <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-primary/8 blur-[80px] pointer-events-none" />
           <div className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-gold/6 blur-[60px] pointer-events-none" />
 
           <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-8">
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1">
               <div className="flex items-center gap-3">
                 <span className="h-px w-12 bg-gold/30" />
                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold">Elite English Mentor</span>
               </div>
-              <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-foreground leading-[1.1]">
+              <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-foreground leading-[1.1]">
                 {emoji} {greeting},
                 <br />
                 <span className="text-primary italic">{session?.user?.name || "Scholar"}</span>
@@ -103,6 +185,34 @@ export default function DashboardPage() {
               <p className="text-base text-muted-foreground font-medium max-w-lg">
                 {subtitle} — Crafted by <span className="text-gold font-black">Ali Jitam ❤️</span>
               </p>
+
+              {/* ── Continue Learning Button ── */}
+              {activeNode && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <Link
+                    href={`/learn/${activeNode.id}`}
+                    className="inline-flex items-center gap-3 bg-gradient-to-r from-primary to-emerald-400 text-white px-8 py-4 rounded-2xl font-black text-lg shadow-2xl shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all active:scale-95 group"
+                  >
+                    <span className="text-2xl">{activeNode.levelIcon}</span>
+                    <div className="text-left">
+                      <span className="block text-sm opacity-80 font-bold">
+                        Level {activeNode.levelNumber} · Unit {activeNode.number}
+                      </span>
+                      <span className="block">Continue Learning →</span>
+                    </div>
+                  </Link>
+                  <p className="text-xs text-muted-foreground mt-2 font-bold">
+                    📚 {activeNode.title}
+                    {activeNode.currentWordIndex > 0 && (
+                      <span className="text-primary ml-2">· Word {activeNode.currentWordIndex + 1}</span>
+                    )}
+                  </p>
+                </motion.div>
+              )}
             </div>
 
             {/* Quick Stats */}
@@ -112,160 +222,215 @@ export default function DashboardPage() {
                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-1">Total XP</p>
               </div>
               <div className="elite-card rounded-2xl border border-primary/10 px-6 py-4 text-center min-w-[100px]">
-                <p className="text-2xl font-black text-primary tabular-nums">📚 {totalUnits}</p>
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-1">Units Ready</p>
+                <p className="text-2xl font-black text-primary tabular-nums">📚 {wordsLearned}</p>
+                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-1">Words Learned</p>
               </div>
+              <div className="elite-card rounded-2xl border border-emerald-500/10 px-6 py-4 text-center min-w-[100px]">
+                <p className="text-2xl font-black text-emerald-500 tabular-nums">✅ {completedCount}</p>
+                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mt-1">Units Done</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Overall Progress Bar */}
+          <div className="relative mt-8 pt-6 border-t border-border/10">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gold/50">Journey Progress</span>
+              <span className="text-[10px] font-black text-primary">{overallProgress}% · {completedCount}/{totalUnits}</span>
+            </div>
+            <div className="h-2.5 bg-muted/20 rounded-full overflow-hidden border border-border/20">
+              <motion.div
+                className="h-full bg-gradient-to-r from-primary to-gold rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${overallProgress}%` }}
+                transition={{ duration: 1.5, ease: "easeOut" }}
+                style={{ boxShadow: "0 0 12px rgba(16,185,129,0.4)" }}
+              />
             </div>
           </div>
         </div>
 
-        {/* ═══ 6 LEVEL CARDS — Premium Grid ═══ */}
+        {/* ═══ THE VERTICAL PATH — Duolingo Style ═══ */}
         <div className="space-y-6">
           <div className="flex items-center gap-3">
             <span className="h-px w-8 bg-gold/30" />
-            <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-gold/70">Learning Tiers</h2>
+            <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-gold/70">Your Learning Path</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {LEVELS.map((level, i) => {
-              const data = levelsData.find(l => l.number === level.number);
-              const unitCount = data?.units?.length || 0;
-              const progress = Math.round((unitCount / 30) * 100);
-
-              return (
-                <motion.button
-                  key={level.number}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.08, duration: 0.4 }}
-                  onClick={() => setActiveLevel(level.number)}
-                  className={cn(
-                    "relative elite-card gradient-shine group rounded-[2rem] p-7 text-left transition-all duration-500 border overflow-hidden",
-                    activeLevel === level.number
-                      ? `border-primary/40 shadow-2xl ${level.glow} ring-2 ring-primary/20 scale-[1.02]`
-                      : "border-border/20 hover:border-gold/20 hover:shadow-xl"
-                  )}
-                >
-                  {/* Level Icon */}
-                  <div className={cn(
-                    "h-14 w-14 rounded-2xl mb-5 flex items-center justify-center text-2xl shadow-lg bg-gradient-to-br transition-transform group-hover:scale-110",
-                    level.color
-                  )}>
-                    {level.icon}
-                  </div>
-
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gold/50 mb-1.5">Tier {level.number}</p>
-                  <h3 className="text-xl font-black text-foreground mb-2">{level.title}</h3>
-                  <p className="text-xs text-muted-foreground font-medium leading-relaxed mb-5">{level.description}</p>
-
-                  {/* Progress Bar */}
-                  <div className="space-y-2 pt-4 border-t border-border/10">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-muted-foreground">{unitCount} / 30 Units</span>
-                      <span className="text-[10px] font-black text-primary">{progress}%</span>
-                    </div>
-                    <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
-                      <div
-                        className={cn("h-full rounded-full transition-all duration-1000 bg-gradient-to-r", level.color)}
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Active Indicator */}
-                  {activeLevel === level.number && (
-                    <span className="absolute top-5 right-5 flex h-2.5 w-2.5 rounded-full bg-primary animate-pulse shadow-lg shadow-primary/50" />
-                  )}
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ═══ UNIT GRID ═══ */}
-        <motion.div
-          key={activeLevel}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="elite-card rounded-[3rem] p-8 md:p-12 border border-gold/10"
-        >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-black text-foreground mb-2 tracking-tight">
-                Level {activeLevel} <span className="text-primary italic">Curriculum</span>
-              </h2>
-              <p className="text-muted-foreground font-medium text-sm">Master all 30 units to advance.</p>
+          {loading ? (
+            <div className="space-y-4">
+              {[1,2,3,4,5].map(i => (
+                <div key={i} className="h-20 rounded-2xl shimmer" />
+              ))}
             </div>
-            <div className="h-px flex-1 bg-gradient-to-r from-gold/20 to-transparent mx-8 hidden xl:block" />
-            <div className="flex flex-col items-end gap-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-gold/50">Mastery</span>
-              <div className="h-3 w-64 bg-muted/20 rounded-full overflow-hidden border border-border/30 p-0.5">
-                <div
-                  className="h-full bg-gradient-to-r from-primary to-gold rounded-full transition-all duration-1000 ease-out shadow-[0_0_12px_hsl(var(--primary)/0.4)]"
-                  style={{ width: `${(currentLevelData?.units?.length || 0) / 30 * 100}%` }}
-                />
+          ) : (
+            <div className="relative">
+              {/* The vertical line */}
+              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/30 via-gold/20 to-muted/10" />
+
+              <div className="space-y-1">
+                {unitNodes.map((node, i) => {
+                  // Check if this is the first unit of a new level → show level separator
+                  const isLevelStart = node.number === 1;
+                  const prevNode = i > 0 ? unitNodes[i - 1] : null;
+                  const isNewLevel = isLevelStart || (prevNode && prevNode.levelNumber !== node.levelNumber);
+
+                  return (
+                    <div key={node.id}>
+                      {/* Level Milestone Separator */}
+                      {isNewLevel && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: i * 0.02 }}
+                          className="flex items-center gap-4 py-6 pl-2"
+                        >
+                          <div className={cn(
+                            "h-14 w-14 rounded-2xl flex items-center justify-center text-2xl shadow-lg bg-gradient-to-br shrink-0 z-10",
+                            node.levelColor
+                          )}>
+                            {node.levelIcon}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gold/50">Tier {node.levelNumber}</p>
+                            <h3 className="text-xl font-black text-foreground">{node.levelTitle}</h3>
+                          </div>
+                          <div className="h-px flex-1 bg-gradient-to-r from-gold/20 to-transparent max-w-32" />
+                        </motion.div>
+                      )}
+
+                      {/* Unit Node */}
+                      <motion.div
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.015, duration: 0.3 }}
+                        className={cn(
+                          "flex items-center gap-4 pl-2 group relative",
+                          node.isActive ? "py-2" : "py-0.5"
+                        )}
+                      >
+                        {/* Node Circle */}
+                        <div className={cn(
+                          "relative z-10 shrink-0 flex items-center justify-center rounded-full transition-all duration-300",
+                          node.isActive
+                            ? "h-14 w-14 bg-gradient-to-br from-primary to-emerald-400 shadow-xl shadow-primary/30 ring-4 ring-primary/20"
+                            : node.isCompleted
+                              ? "h-10 w-10 bg-gradient-to-br from-emerald-500 to-green-600 shadow-md shadow-emerald-500/20"
+                              : node.isUnlocked
+                                ? "h-10 w-10 bg-muted border-2 border-primary/30 hover:border-primary/60"
+                                : "h-8 w-8 bg-muted/30 border border-border/20"
+                        )}>
+                          {node.isCompleted ? (
+                            <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : node.isActive ? (
+                            <span className="text-white font-black text-lg animate-pulse">{node.number}</span>
+                          ) : node.isUnlocked ? (
+                            <span className="text-foreground/60 font-bold text-sm">{node.number}</span>
+                          ) : (
+                            <svg className="h-3 w-3 text-muted-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                          )}
+                        </div>
+
+                        {/* Unit Card */}
+                        {node.isUnlocked ? (
+                          <Link
+                            href={`/learn/${node.id}`}
+                            className={cn(
+                              "flex-1 elite-card rounded-2xl px-5 py-3 transition-all duration-300 border group/card",
+                              node.isActive
+                                ? "border-primary/30 bg-primary/5 shadow-lg shadow-primary/10 hover:shadow-xl hover:shadow-primary/20 hover:border-primary/50"
+                                : node.isCompleted
+                                  ? "border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/5"
+                                  : "border-border/20 hover:border-primary/30 hover:bg-muted/30"
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className={cn(
+                                    "text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md",
+                                    node.isActive
+                                      ? "bg-primary/10 text-primary"
+                                      : node.isCompleted
+                                        ? "bg-emerald-500/10 text-emerald-500"
+                                        : "bg-muted text-muted-foreground/50"
+                                  )}>
+                                    U{node.number}
+                                  </span>
+                                  <h4 className={cn(
+                                    "text-sm font-bold truncate",
+                                    node.isActive ? "text-foreground" : node.isCompleted ? "text-foreground/80" : "text-muted-foreground"
+                                  )}>
+                                    {node.title}
+                                  </h4>
+                                </div>
+                                {node.wordCount > 0 && (
+                                  <p className="text-[10px] text-muted-foreground/50 font-bold mt-0.5">
+                                    {node.wordCount} words
+                                    {node.currentWordIndex > 0 && !node.isCompleted && (
+                                      <span className="text-primary ml-1">· Word {node.currentWordIndex + 1}</span>
+                                    )}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Right indicator */}
+                              <div className="shrink-0 ml-3">
+                                {node.isActive ? (
+                                  <span className="inline-flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-lg shadow-primary/20">
+                                    Start →
+                                  </span>
+                                ) : node.isCompleted ? (
+                                  <span className="text-emerald-500 text-xs font-black">✅</span>
+                                ) : (
+                                  <svg className="h-4 w-4 text-muted-foreground/30 group-hover/card:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+                        ) : (
+                          <div className={cn(
+                            "flex-1 elite-card rounded-2xl px-5 py-3 border border-border/10 opacity-40 cursor-not-allowed"
+                          )}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/30 px-1.5 py-0.5 rounded-md bg-muted/30">
+                                    U{node.number}
+                                  </span>
+                                  <h4 className="text-sm font-bold text-muted-foreground/40 truncate">
+                                    {node.title}
+                                  </h4>
+                                </div>
+                                {node.wordCount > 0 && (
+                                  <p className="text-[10px] text-muted-foreground/30 font-bold mt-0.5">{node.wordCount} words</p>
+                                )}
+                              </div>
+                              <svg className="h-4 w-4 text-muted-foreground/20 shrink-0 ml-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-10 gap-3">
-            {Array.from({ length: 30 }).map((_, i) => {
-              const unitNumber = i + 1;
-              const unit = currentLevelData?.units?.find((u: any) => u.number === unitNumber);
-              const isUnlocked = !!unit;
-
-              return (
-                <div key={unitNumber} className="relative group">
-                  {isUnlocked ? (
-                    <Link
-                      href={`/learn/${unit.id}`}
-                      className="aspect-square elite-card rounded-2xl flex flex-col items-center justify-center border border-primary/20 bg-primary/5 hover:bg-primary hover:text-white transition-all duration-300 group hover:scale-110 hover:shadow-xl hover:shadow-primary/20"
-                    >
-                      <span className="text-[7px] font-black opacity-40 mb-0.5">UNIT</span>
-                      <span className="text-lg font-black">{unitNumber}</span>
-                    </Link>
-                  ) : (
-                    <div className="aspect-square elite-card rounded-2xl flex flex-col items-center justify-center border border-border/10 opacity-20 cursor-not-allowed">
-                      <svg className="h-3.5 w-3.5 mb-0.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      <span className="text-[7px] font-black">{unitNumber}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-
-        {/* ═══ QUICK ACTION TILES ═══ */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {[
-            { label: "Elite AI Tutor", icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z", color: "from-violet-500/10 to-fuchsia-500/5", text: "text-violet-500", border: "border-violet-500/10 hover:border-violet-500/30" },
-            { label: "Competitive Quizzes", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4", color: "from-emerald-500/10 to-teal-500/5", text: "text-emerald-500", border: "border-emerald-500/10 hover:border-emerald-500/30" },
-            { label: "Voice Recognition", icon: "M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z", color: "from-gold/10 to-amber-500/5", text: "text-gold", border: "border-gold/10 hover:border-gold/30" },
-          ].map((feat) => (
-            <div key={feat.label} className={cn("elite-card rounded-[2rem] p-7 relative overflow-hidden group cursor-not-allowed border transition-all duration-300", feat.border)}>
-              <div className="absolute top-5 right-5">
-                <span className="bg-foreground/5 text-foreground/30 text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-foreground/5">
-                  Soon
-                </span>
-              </div>
-              <div className={cn("h-12 w-12 rounded-xl flex items-center justify-center mb-5 bg-gradient-to-br", feat.color, feat.text)}>
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={feat.icon} />
-                </svg>
-              </div>
-              <h4 className="text-lg font-black text-foreground mb-1">{feat.label}</h4>
-              <p className="text-[10px] text-muted-foreground font-medium italic opacity-50">Implementation in progress.</p>
-            </div>
-          ))}
+          )}
         </div>
       </div>
 
       {/* ═══ RIGHT SIDEBAR: ELITE FRIENDS ═══ */}
       <aside className="hidden lg:flex flex-col w-80 space-y-6 shrink-0">
-        <div className="elite-card rounded-[2.5rem] p-8 border border-gold/10 flex-1 flex flex-col">
+        <div className="elite-card rounded-[2.5rem] p-8 border border-gold/10 flex-1 flex flex-col sticky top-24 max-h-[calc(100vh-120px)]">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-lg font-black text-foreground tracking-tight">Elite <span className="text-gold">Friends</span></h3>
             <Link href="/leaderboard" className="h-8 w-8 rounded-full bg-gold/10 flex items-center justify-center text-gold hover:bg-gold hover:text-white transition-all" title="Find friends">
@@ -275,7 +440,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="space-y-3 flex-1">
+          <div className="space-y-3 flex-1 overflow-y-auto">
             {loading ? (
               <>
                 {[1,2,3].map(i => (
@@ -294,7 +459,7 @@ export default function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              friends.slice(0, 6).map((f) => {
+              friends.slice(0, 8).map((f) => {
                 const online = isOnline(f.friend.lastSeen);
                 return (
                   <Link
@@ -327,7 +492,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {friends.length > 6 && (
+          {friends.length > 8 && (
             <Link href="/leaderboard" className="mt-6 w-full py-3 rounded-2xl bg-gold/5 text-gold text-xs font-black uppercase tracking-widest hover:bg-gold/10 transition-all text-center block border border-gold/10">
                View All ({friends.length})
             </Link>

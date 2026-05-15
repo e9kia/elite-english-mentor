@@ -1,8 +1,18 @@
+// =====================================================================
+//  src/app/(student)/learn/[id]/page.tsx
+//  Unit Learn Page — Foundation Protocol
+//  Alphabetical word order (A-Z), AI with fallback, progress tracking
+//  Designed by Ali Jitam ❤️
+// =====================================================================
+
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import FlashcardClient from "./FlashcardClient";
 import { generateFlashcardData, type FlashcardAIData } from "@/lib/gemini";
+import { generateLocalFallback } from "@/lib/fallback";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -25,24 +35,40 @@ export default async function LearnPage({ params }: { params: Promise<{ id: stri
     where: { id: unitId },
     include: {
       level: true,
-      words: { orderBy: { id: "asc" } },
+      // ── ALPHABETICAL ORDER (A-Z) — Module 2 ──
+      words: { orderBy: { word: "asc" } },
     },
   });
 
   if (!unit) return notFound();
 
-  // ─── AI DATA HEALING: The Brain ───────────────────────────────────
-  // For every word, generate RICH structured data via Gemini.
-  // If the word already has a valid definition, we still generate
-  // the 3 examples on the fly (they're not stored in the DB).
-  // This is Ali Jitam's "Zero Empty States" philosophy.
+  // ── Get user's current word index ──
+  const session = await getServerSession(authOptions);
+  let currentWordIndex = 0;
+  let resolvedUserId: string | undefined;
+
+  if (session?.user?.id) {
+    resolvedUserId = session.user.id;
+  } else {
+    const admin = await prisma.user.findFirst({ where: { role: "admin" } });
+    resolvedUserId = admin?.id ?? undefined;
+  }
+
+  if (resolvedUserId) {
+    const progress = await prisma.userUnitProgress.findUnique({
+      where: { userId_unitId: { userId: resolvedUserId, unitId } },
+    });
+    currentWordIndex = progress?.currentWordIndex ?? 0;
+  }
+
+  // ── AI DATA HEALING with FALLBACK SAFETY NET ─────────────────────
   const enrichedWords: EnrichedWord[] = await Promise.all(
     unit.words.map(async (w) => {
       try {
         console.log(`[AI HEAL] Generating flashcard data for: ${w.word}`);
-        const aiData = await generateFlashcardData(w.word, w.type);
+        const aiData = await generateFlashcardData(w.word, w.type, w.definition, w.example);
 
-        // If the DB definition was missing, also persist the translation
+        // If the DB definition was missing, persist the translation
         if (!w.definition || w.definition.startsWith("[AI")) {
           await prisma.word.update({
             where: { id: w.id },
@@ -60,23 +86,17 @@ export default async function LearnPage({ params }: { params: Promise<{ id: stri
           aiData,
         };
       } catch (err) {
-        console.error(`[AI HEAL] Failed for ${w.word}:`, err);
+        console.error(`[AI HEAL] Failed for ${w.word}, using local fallback:`, err);
+        // ── SAFETY NET: Local fallback — user NEVER sees an error ──
+        const fallbackData = generateLocalFallback(w.word, w.type, w.definition || w.word, w.example || "");
         return {
           id: w.id,
           word: w.word,
           type: w.type,
-          definition: w.definition || "Translation pending...",
+          definition: w.definition || fallbackData.translation,
           example: w.example,
           phonetic: w.phonetic,
-          aiData: {
-            translation: w.definition || "Translation pending...",
-            posArabic: w.type,
-            examples: [
-              { english: w.example, arabic: "الترجمة قيد المعالجة" },
-              { english: `${w.word} is commonly used.`, arabic: "يستخدم بشكل شائع" },
-              { english: `Learn the word ${w.word}.`, arabic: "تعلم هذه الكلمة" },
-            ],
-          },
+          aiData: fallbackData,
         };
       }
     })
@@ -112,7 +132,7 @@ export default async function LearnPage({ params }: { params: Promise<{ id: stri
              </span>
              <span className="text-[10px] font-bold text-muted-foreground tracking-[0.2em] uppercase">Unit {unit.number}</span>
              <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-               {enrichedWords.length} words
+               {enrichedWords.length} words · A→Z
              </span>
            </div>
            <h1 className="text-4xl md:text-5xl font-black text-foreground tracking-tighter italic">{unit.title}</h1>
@@ -125,8 +145,15 @@ export default async function LearnPage({ params }: { params: Promise<{ id: stri
         </Link>
       </div>
 
-      {/* The 3D Flashcard Engine */}
-      <FlashcardClient words={enrichedWords} />
+      {/* The 3D Flashcard Engine with Linear Progression */}
+      <FlashcardClient
+        words={enrichedWords}
+        unitId={unitId}
+        unitTitle={unit.title}
+        levelNumber={unit.level.number}
+        unitNumber={unit.number}
+        initialWordIndex={currentWordIndex}
+      />
     </div>
   );
 }
