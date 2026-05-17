@@ -181,6 +181,7 @@ model Unit {
   tutorSessions UserTutorSession[]
   quizAttempts  UserQuizAttempt[]
   duels         Duel[]
+  story         Story?
 
   @@unique([levelId, number]) // prevents duplicate unit numbers per level
   @@index([levelId])
@@ -198,6 +199,18 @@ model Word {
   audioUrl   String?  @map("audio_url") // TTS-generated audio file URL
   imageUrl   String?  @map("image_url")
   difficulty Int      @default(1) // 1–5 internal scoring
+
+  // ── Static Content Fields (The Pure DB Plan) ──
+  // All flashcard data is stored here — NO runtime AI calls needed.
+  meaningArabic  String? @map("meaning_arabic")    // Primary Arabic meaning
+  typeArabic     String? @map("type_arabic")       // Word type in Arabic (اسم، فعل)
+  sentenceArabic String? @map("sentence_arabic")   // Arabic translation of primary sentence
+  sentence2      String? @map("sentence_2")        // Additional contextual sentence 2
+  sentence3      String? @map("sentence_3")        // Additional contextual sentence 3
+  sentence4      String? @map("sentence_4")        // Additional contextual sentence 4
+  ipa            String?                           // IPA pronunciation override
+  collocations   String?                           // Comma-separated collocations
+  antonyms       String?                           // Comma-separated antonyms
 
   // ── Import tracking ──
   importBatchId String?  @map("import_batch_id") // links to ImportBatch.id
@@ -523,4 +536,22 @@ model TreasureChestClaim {
   @@unique([userId, milestone])
   @@index([userId])
   @@map("treasure_chest_claims")
+}
+
+// ─────────────────────────────────────────────
+//  INTERACTIVE STORY MODULE
+// ─────────────────────────────────────────────
+
+model Story {
+  id        String   @id @default(uuid())
+  unitId    Int      @unique @map("unit_id")
+  title     String
+  content   Json     // Array of { en: string, ar: string }
+  quizData  Json     // Array of { question: string, options: string[], answerIndex: number }
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@map("stories")
 }

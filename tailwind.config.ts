@@ -48,6 +48,7 @@ const config: Config = {
       fontFamily: {
         sans: ["Geist", "var(--font-inter)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "monospace"],
+        arabic: ["'Noto Sans Arabic'", "'Segoe UI'", "Tahoma", "sans-serif"],
       },
       animation: {
         "dash":         "dash 2s linear infinite",

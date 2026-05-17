@@ -1,7 +1,6 @@
 // =====================================================================
 //  src/app/api/student/progress/route.ts
-//  Progress API — Returns levels, units, word counts, and user progress
-//  for the Foundation Protocol's Linear Roadmap
+//  Progress API — Optimized Prisma queries with select fields
 //  Designed by Ali Jitam ❤️
 // =====================================================================
 
@@ -15,44 +14,56 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    let userId: string | null = null;
+    let userId: string | null = session?.user?.id ?? null;
 
-    if (session?.user?.id) {
-      userId = session.user.id;
-    } else {
-      // Fallback: use first admin in dev
-      const admin = await prisma.user.findFirst({ where: { role: "admin" } });
+    if (!userId) {
+      const admin = await prisma.user.findFirst({
+        where: { role: "admin" },
+        select: { id: true },
+      });
       userId = admin?.id ?? null;
     }
 
+    // Optimized: select only needed fields
     const levels = await prisma.level.findMany({
       orderBy: { number: "asc" },
-      include: {
+      select: {
+        id: true,
+        number: true,
+        title: true,
+        description: true,
         units: {
           orderBy: { number: "asc" },
-          include: {
-            _count: {
-              select: { words: true }
-            },
-          }
-        }
-      }
+          select: {
+            id: true,
+            number: true,
+            title: true,
+            _count: { select: { words: true } },
+          },
+        },
+      },
     });
 
-    // Fetch user's unit progress
     let userProgress: Record<number, {
       status: string;
       currentWordIndex: number;
       completedAt: Date | null;
     }> = {};
-
     let totalXp = 0;
     let wordsLearned = 0;
 
     if (userId) {
-      const progress = await prisma.userUnitProgress.findMany({
-        where: { userId },
-      });
+      const [progress, lb, wc] = await Promise.all([
+        prisma.userUnitProgress.findMany({
+          where: { userId },
+          select: { unitId: true, status: true, currentWordIndex: true, completedAt: true },
+        }),
+        prisma.leaderboardSnapshot.findUnique({
+          where: { userId },
+          select: { totalXp: true },
+        }),
+        prisma.userWordMastery.count({ where: { userId } }),
+      ]);
 
       for (const p of progress) {
         userProgress[p.unitId] = {
@@ -61,21 +72,10 @@ export async function GET() {
           completedAt: p.completedAt,
         };
       }
-
-      // Get total XP
-      const lb = await prisma.leaderboardSnapshot.findUnique({
-        where: { userId },
-      });
       totalXp = lb?.totalXp ?? 0;
-
-      // Get total words learned
-      const wc = await prisma.userWordMastery.count({
-        where: { userId },
-      });
       wordsLearned = wc;
     }
 
-    // Enrich levels with progress data
     const enrichedLevels = levels.map(level => ({
       ...level,
       units: level.units.map(unit => ({
@@ -85,11 +85,7 @@ export async function GET() {
       })),
     }));
 
-    return NextResponse.json({
-      levels: enrichedLevels,
-      totalXp,
-      wordsLearned,
-    });
+    return NextResponse.json({ levels: enrichedLevels, totalXp, wordsLearned });
   } catch (error) {
     console.error("[PROGRESS_API_ERROR]", error);
     return NextResponse.json({ error: "Failed to fetch progress" }, { status: 500 });

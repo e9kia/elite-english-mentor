@@ -3,27 +3,28 @@
 @tailwind utilities;
 
 /* =====================================================================
-   ELITE ENGLISH MENTOR — Midnight Emerald & Gold Design System
+   ELITE ENGLISH MENTOR — Elite Midnight Gold Design System
+   Obsidian Black + Champagne Gold + Slate/Ivory
    Designed & Developed by Ali Jitam ❤️
    ===================================================================== */
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --muted: 210 30% 95%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --border: 214.3 20% 90%;
-    --input: 214.3 31.8% 91.4%;
-    --primary: 161 84% 39%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --ring: 161 84% 39%;
+    --background: 40 15% 97%;
+    --foreground: 220 25% 10%;
+    --card: 40 10% 100%;
+    --card-foreground: 220 25% 10%;
+    --muted: 40 10% 93%;
+    --muted-foreground: 220 10% 46%;
+    --border: 40 10% 88%;
+    --input: 40 10% 90%;
+    --primary: 43 74% 49%;
+    --primary-foreground: 220 25% 6%;
+    --secondary: 220 15% 95%;
+    --secondary-foreground: 220 25% 10%;
+    --accent: 220 15% 95%;
+    --accent-foreground: 220 25% 10%;
+    --ring: 43 74% 49%;
     --radius: 1.25rem;
     --success: 158 64% 40%;
     --warning: 38 92% 50%;
@@ -33,21 +34,21 @@
   }
 
   [data-theme="dark"] {
-    --background: 228 30% 7%;
-    --foreground: 210 40% 96%;
-    --card: 225 25% 11%;
-    --card-foreground: 210 40% 96%;
-    --muted: 225 20% 14%;
-    --muted-foreground: 215 20% 60%;
-    --border: 225 18% 18%;
-    --input: 225 18% 18%;
-    --primary: 161 84% 39%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 225 20% 14%;
-    --secondary-foreground: 210 40% 96%;
-    --accent: 225 20% 14%;
-    --accent-foreground: 210 40% 96%;
-    --ring: 161 84% 39%;
+    --background: 220 20% 4%;
+    --foreground: 45 20% 95%;
+    --card: 220 18% 8%;
+    --card-foreground: 45 20% 95%;
+    --muted: 220 15% 12%;
+    --muted-foreground: 220 10% 55%;
+    --border: 220 12% 16%;
+    --input: 220 12% 16%;
+    --primary: 43 74% 49%;
+    --primary-foreground: 220 25% 4%;
+    --secondary: 220 15% 12%;
+    --secondary-foreground: 45 20% 95%;
+    --accent: 220 15% 12%;
+    --accent-foreground: 45 20% 95%;
+    --ring: 43 74% 49%;
     --gold: 43 96% 56%;
     --gold-deep: 38 75% 55%;
   }
@@ -75,7 +76,7 @@
     backdrop-filter: blur(24px) saturate(1.3);
     -webkit-backdrop-filter: blur(24px) saturate(1.3);
     border: 1px solid hsl(var(--border) / 0.5);
-    box-shadow: 0 0 0 1px hsl(var(--gold) / 0.03), 0 4px 24px -4px hsl(var(--background) / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.04);
+    box-shadow: 0 0 0 1px hsl(var(--gold) / 0.04), 0 4px 24px -4px hsl(var(--background) / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.03);
   }
 
   .gradient-text { @apply bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/70; }
@@ -88,7 +89,7 @@
   }
 
   .glow-gold { box-shadow: 0 0 32px -8px hsl(var(--gold) / 0.25), 0 0 64px -16px hsl(var(--gold) / 0.1); }
-  .glow-primary { box-shadow: 0 0 32px -8px rgba(16, 185, 129, 0.25); }
+  .glow-primary { box-shadow: 0 0 32px -8px hsl(var(--gold) / 0.25); }
 
   .gradient-shine { position: relative; overflow: hidden; }
   .gradient-shine::after {
@@ -98,8 +99,8 @@
   }
   @keyframes shine { 0%,100%{transform:translateX(-100%)} 50%{transform:translateX(100%)} }
 
-  .dropzone-border { background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='20' ry='20' stroke='%2310B981' stroke-width='2' stroke-dasharray='8%2c 6' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e"); }
-  .dropzone-border-active { background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='20' ry='20' stroke='%2310B981' stroke-width='3' stroke-dasharray='8%2c 6' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e"); }
+  .dropzone-border { background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='20' ry='20' stroke='%23C8A961' stroke-width='2' stroke-dasharray='8%2c 6' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e"); }
+  .dropzone-border-active { background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='20' ry='20' stroke='%23C8A961' stroke-width='3' stroke-dasharray='8%2c 6' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e"); }
 
   .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
   .animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
@@ -107,6 +108,9 @@
   .animate-fade-in { animation: fadeIn 0.5s cubic-bezier(0.22,1,0.36,1) forwards; }
   @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
   .tap-target { min-height: 44px; min-width: 44px; }
+
+  /* Mobile bottom nav safe area */
+  .pb-safe { padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px); }
 }
 
 html { scroll-behavior: smooth; }

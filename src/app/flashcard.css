@@ -1,8 +1,6 @@
 /* =====================================================================
-   Flashcard 3D flip styles — injected once into globals.css
-   (append to existing file via a separate import or add here)
-   These CSS classes are needed because Tailwind can't do
-   perspective / preserve-3d / backface-visibility cleanly.
+   Flashcard 3D flip styles — Elite Midnight Gold Edition
+   Designed by Ali Jitam ❤️
    ===================================================================== */
 
 /* Card flip container */
@@ -29,15 +27,16 @@
   transform: rotateY(180deg);
 }
 
-/* Shimmer loading skeleton */
+/* Shimmer loading skeleton — Obsidian Dark */
 @keyframes shimmer {
   from { background-position: -400px 0; }
   to   { background-position:  400px 0; }
 }
 .shimmer {
-  background: linear-gradient(90deg, hsl(217 33% 17%) 25%, hsl(217 33% 22%) 50%, hsl(217 33% 17%) 75%);
+  background: linear-gradient(90deg, hsl(220 18% 8%) 25%, hsl(220 18% 13%) 50%, hsl(220 18% 8%) 75%);
   background-size: 400px 100%;
   animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 1rem;
 }
 
 /* SRS button ripple */

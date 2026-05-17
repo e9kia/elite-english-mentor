@@ -90,16 +90,13 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
       entityMap.set(key, unit.id);
     }
 
-    // 4. 100% AI TRANSLATION (Ignoring CSV Definition)
-    // We process in small batches to avoid Gemini timeouts
-    const AI_BATCH_SIZE = 20;
-    for (let i = 0; i < rawRows.length; i += AI_BATCH_SIZE) {
-      const rowChunk = rawRows.slice(i, i + AI_BATCH_SIZE);
-      const wordsToTranslate = rowChunk.map(r => String(normaliseRow(r).word || "").trim()).filter(Boolean);
-
-      const aiTranslations = await batchTranslateToArabic(wordsToTranslate);
-
+    // 4. PURE BATCH UPSERT (No AI, zero latency)
+    // We process in small batches for reliability
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < rawRows.length; i += BATCH_SIZE) {
+      const rowChunk = rawRows.slice(i, i + BATCH_SIZE);
       const wordsToUpsert = [];
+
       for (const raw of rowChunk) {
         const normalised = normaliseRow(raw);
 
@@ -109,23 +106,31 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
         if (rawPos && !VALID_TYPES.includes(rawPos)) normalised.type = "other";
 
         const parsed = wordRowSchema.safeParse(normalised);
-        if (!parsed.success) continue;
+        if (!parsed.success) {
+          errors.push({ row: i + rowChunk.indexOf(raw) + 2, word: raw.word || "Unknown", reason: parsed.error.errors[0].message });
+          continue;
+        }
 
         const data = parsed.data;
         const unitId = entityMap.get(`${data.level}-${data.unit}`);
         if (!unitId) continue;
 
-        // FORCE AI TRANSLATION (Ignore CSV)
-        const finalDefinition = aiTranslations[data.word] || "Translation unavailable";
-
         wordsToUpsert.push({
           unitId,
           word: data.word,
           type: data.type as WordType,
-          definition: finalDefinition,
+          definition: data.definition,
           example: data.example,
           phonetic: data.phonetic ?? null,
           difficulty: data.difficulty,
+          meaningArabic: data.meaningArabic || "—",
+          typeArabic: data.typeArabic || "—",
+          sentenceArabic: data.sentenceArabic || "—",
+          sentence2: data.sentence2 || null,
+          sentence3: data.sentence3 || null,
+          sentence4: data.sentence4 || null,
+          collocations: data.collocations || null,
+          antonyms: data.antonyms || null,
           importBatchId: batch.id,
           createdById: opts.userId,
         });
@@ -142,6 +147,15 @@ export async function importWordsFromBuffer(opts: ImportOptions): Promise<Import
               definition: row.definition,
               example: row.example,
               difficulty: row.difficulty,
+              meaningArabic: row.meaningArabic,
+              typeArabic: row.typeArabic,
+              sentenceArabic: row.sentenceArabic,
+              sentence2: row.sentence2,
+              sentence3: row.sentence3,
+              sentence4: row.sentence4,
+              collocations: row.collocations,
+              antonyms: row.antonyms,
+              phonetic: row.phonetic,
             },
           })
         )
@@ -189,5 +203,13 @@ function normaliseRow(row: any) {
     unit: find(["unit", "unitnumber"]),
     difficulty: parseInt(String(find(["difficulty", "diff"]) || "1")),
     phonetic: find(["phonetic", "ipa"]),
+    meaningArabic: find(["meaningarabic", "meaning arabic"]),
+    typeArabic: find(["typearabic", "type arabic"]),
+    sentenceArabic: find(["sentencearabic", "sentence arabic"]),
+    sentence2: find(["sentence2", "sentence 2"]),
+    sentence3: find(["sentence3", "sentence 3"]),
+    sentence4: find(["sentence4", "sentence 4"]),
+    collocations: find(["collocations"]),
+    antonyms: find(["antonyms"]),
   };
 }

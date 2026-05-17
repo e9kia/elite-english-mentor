@@ -173,8 +173,8 @@ export default function AITutorPanel({ word, type, definition, example }: AITuto
         onClick={(e) => { e.stopPropagation(); handleOpen(); }}
         className={cn(
           "flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all duration-200",
-          "bg-violet-500/10 border-violet-500/30 text-violet-300",
-          "hover:bg-violet-500/20 hover:border-violet-500/50 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-500/10"
+          "bg-gold/10 border-gold/30 text-gold",
+          "hover:bg-gold/20 hover:border-gold/50 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-gold/10"
         )}
         aria-label="Open AI Tutor"
       >
@@ -204,7 +204,7 @@ export default function AITutorPanel({ word, type, definition, example }: AITuto
               exit={{ y: "100%", opacity: 0 }}
               transition={{ type: "spring", damping: 28, stiffness: 280 }}
               className="fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] flex flex-col glass border-t border-border/60 rounded-t-3xl overflow-hidden"
-              style={{ background: "hsl(222 40% 10% / 0.98)" }}
+              style={{ background: "hsl(var(--card) / 0.98)" }}
             >
               {/* Handle */}
               <div className="flex justify-center pt-3 pb-2 shrink-0">

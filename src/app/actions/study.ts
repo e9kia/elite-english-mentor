@@ -193,9 +193,11 @@ export async function saveWordProgress({
 export async function completeUnit({
   userId,
   unitId,
+  bonusXp = 0,
 }: {
   userId?: string;
   unitId: number;
+  bonusXp?: number;
 }) {
   let resolvedUserId = userId;
   if (!resolvedUserId) {
@@ -219,12 +221,14 @@ export async function completeUnit({
     },
   });
 
+  const totalXp = 50 + bonusXp;
+
   // Award unit_complete XP
   await prisma.xpEvent.create({
     data: {
       userId: resolvedUserId,
       eventType: "unit_complete",
-      xpEarned: 50,
+      xpEarned: totalXp,
       referenceId: String(unitId),
     },
   });
@@ -232,11 +236,11 @@ export async function completeUnit({
   // Update leaderboard
   await prisma.leaderboardSnapshot.upsert({
     where: { userId: resolvedUserId },
-    create: { userId: resolvedUserId, totalXp: 50 },
-    update: { totalXp: { increment: 50 } },
+    create: { userId: resolvedUserId, totalXp: totalXp },
+    update: { totalXp: { increment: totalXp } },
   });
 
   revalidatePath("/dashboard");
 
-  return { completed: true, xpEarned: 50 };
+  return { completed: true, xpEarned: totalXp };
 }

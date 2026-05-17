@@ -64,6 +64,18 @@ export const wordRowSchema = z.object({
 
   /** Optional difficulty 1–5 */
   difficulty: z.coerce.number().int().min(1).max(5).optional().default(1),
+
+  /** Enriched Arabic translation fields */
+  meaningArabic: z.string().trim().optional().default(""),
+  typeArabic: z.string().trim().optional().default(""),
+  sentenceArabic: z.string().trim().optional().default(""),
+  sentence2: z.string().trim().optional(),
+  sentence3: z.string().trim().optional(),
+  sentence4: z.string().trim().optional(),
+
+  /** Additional metadata */
+  collocations: z.string().trim().optional(),
+  antonyms: z.string().trim().optional(),
 });
 
 export type WordRow = z.infer<typeof wordRowSchema>;
@@ -114,4 +126,20 @@ export const COLUMN_ALIASES: Record<string, keyof WordRow> = {
 
   difficulty: "difficulty",
   diff: "difficulty",
+
+  // New enriched fields
+  meaningarabic: "meaningArabic",
+  "meaning arabic": "meaningArabic",
+  typearabic: "typeArabic",
+  "type arabic": "typeArabic",
+  sentencearabic: "sentenceArabic",
+  "sentence arabic": "sentenceArabic",
+  sentence2: "sentence2",
+  "sentence 2": "sentence2",
+  sentence3: "sentence3",
+  "sentence 3": "sentence3",
+  sentence4: "sentence4",
+  "sentence 4": "sentence4",
+  collocations: "collocations",
+  antonyms: "antonyms",
 };
