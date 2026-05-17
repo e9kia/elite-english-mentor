@@ -28,19 +28,34 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/register", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ username: form.username, email: form.email, password: form.password }),
+        body:    JSON.stringify({ 
+          username: form.username.trim(), 
+          email: form.email.trim(), 
+          password: form.password 
+        }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Registration failed"); return; }
+      
+      if (!res.ok) { 
+        // Show detailed backend error if available
+        const errorMsg = data.detail ? `${data.error}: ${data.detail}` : (data.error ?? "Registration failed");
+        setError(errorMsg); 
+        return; 
+      }
 
       // Auto sign-in after registration
-      const result = await signIn("credentials", { email: form.email, password: form.password, redirect: false });
+      const result = await signIn("credentials", { 
+        email: form.email.trim(), 
+        password: form.password, 
+        redirect: false 
+      });
+      
       if (result?.ok) {
         router.push("/dashboard");
       } else {
         router.push("/login");
       }
-    } catch {
+    } catch (err: any) {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);

@@ -15,11 +15,16 @@ const registerSchema = z.object({
 
 export async function POST(req: NextRequest) {
   let body: unknown;
-  try { body = await req.json(); }
-  catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  try { 
+    body = await req.json(); 
+  } catch (err: any) { 
+    console.error("[REGISTER ERROR] Invalid JSON payload:", err.message);
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); 
+  }
 
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {
+    console.error("[REGISTER ERROR] Payload validation failed:", parsed.error.errors);
     return NextResponse.json(
       { error: parsed.error.errors[0].message },
       { status: 422 }
