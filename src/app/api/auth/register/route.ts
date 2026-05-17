@@ -28,37 +28,42 @@ export async function POST(req: NextRequest) {
 
   const { username, email, password } = parsed.data;
 
-  // Check for existing email / username
-  const existing = await prisma.user.findFirst({
-    where: { OR: [{ email: email.toLowerCase() }, { username }] },
-  });
-  if (existing) {
-    const conflict = existing.email === email.toLowerCase() ? "Email" : "Username";
-    return NextResponse.json({ error: `${conflict} is already taken` }, { status: 409 });
+  try {
+    // Check for existing email / username
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email: email.toLowerCase() }, { username }] },
+    });
+    if (existing) {
+      const conflict = existing.email === email.toLowerCase() ? "Email" : "Username";
+      return NextResponse.json({ error: `${conflict} is already taken` }, { status: 409 });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Ali Jitam ❤️: First user to sign up becomes Admin
+    const userCount = await prisma.user.count();
+    const role = userCount === 0 ? "admin" : "student";
+
+    const user = await prisma.user.create({
+      data: {
+        username,
+        email:        email.toLowerCase(),
+        passwordHash,
+        role,
+      },
+      select: { id: true, username: true, email: true, role: true },
+    });
+
+    // Initialize leaderboard entry
+    await prisma.leaderboardSnapshot.upsert({
+      where:  { userId: user.id },
+      create: { userId: user.id, totalXp: 0 },
+      update: {},
+    });
+
+    return NextResponse.json({ success: true, user }, { status: 201 });
+  } catch (err: any) {
+    console.error("[REGISTER ERROR]", err);
+    return NextResponse.json({ error: "Registration failed", detail: err.message }, { status: 500 });
   }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  // Ali Jitam ❤️: First user to sign up becomes Admin
-  const userCount = await prisma.user.count();
-  const role = userCount === 0 ? "admin" : "student";
-
-  const user = await prisma.user.create({
-    data: {
-      username,
-      email:        email.toLowerCase(),
-      passwordHash,
-      role,
-    },
-    select: { id: true, username: true, email: true, role: true },
-  });
-
-  // Initialize leaderboard entry
-  await prisma.leaderboardSnapshot.upsert({
-    where:  { userId: user.id },
-    create: { userId: user.id, totalXp: 0 },
-    update: {},
-  });
-
-  return NextResponse.json({ success: true, user }, { status: 201 });
 }

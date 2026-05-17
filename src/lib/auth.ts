@@ -80,7 +80,8 @@ export const authOptions: NextAuthOptions = {
             role:     user.role,
             image:    user.avatarUrl ?? null,
           };
-        } catch {
+        } catch (err) {
+          console.error("[AUTH ERROR]", err);
           // DB not yet connected during initial setup
           return null;
         }
