@@ -29,12 +29,18 @@ export async function POST(req: NextRequest) {
   const { username, email, password } = parsed.data;
 
   try {
-    // Check for existing email / username
+    // Check for existing email / username case-insensitively
     const existing = await prisma.user.findFirst({
-      where: { OR: [{ email: email.toLowerCase() }, { username }] },
+      where: {
+        OR: [
+          { email: email.toLowerCase() },
+          { username: { equals: username, mode: "insensitive" } }
+        ]
+      },
     });
+    
     if (existing) {
-      const conflict = existing.email === email.toLowerCase() ? "Email" : "Username";
+      const conflict = existing.email.toLowerCase() === email.toLowerCase() ? "Email" : "Username";
       return NextResponse.json({ error: `${conflict} is already taken` }, { status: 409 });
     }
 
@@ -64,6 +70,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, user }, { status: 201 });
   } catch (err: any) {
     console.error("[REGISTER ERROR]", err);
+    
+    // Handle Prisma unique constraint violations gracefully
+    if (err.code === "P2002") {
+      const target = err.meta?.target?.[0] || "Field";
+      return NextResponse.json({ error: `${target} is already taken` }, { status: 409 });
+    }
+    
     return NextResponse.json({ error: "Registration failed", detail: err.message }, { status: 500 });
   }
 }
