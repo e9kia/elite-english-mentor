@@ -207,10 +207,14 @@ model Word {
   typeArabic     String? @map("type_arabic")       // Word type in Arabic (اسم، فعل)
   sentenceArabic String? @map("sentence_arabic")   // Arabic translation of primary sentence
   sentence2      String? @map("sentence_2")        // Additional contextual sentence 2
+  sentence2Arabic String? @map("sentence_2_arabic")
   sentence3      String? @map("sentence_3")        // Additional contextual sentence 3
+  sentence3Arabic String? @map("sentence_3_arabic")
   sentence4      String? @map("sentence_4")        // Additional contextual sentence 4
+  sentence4Arabic String? @map("sentence_4_arabic")
   ipa            String?                           // IPA pronunciation override
   collocations   String?                           // Comma-separated collocations
+  synonyms       String?                           // Comma-separated synonyms
   antonyms       String?                           // Comma-separated antonyms
 
   // ── Import tracking ──
@@ -289,6 +293,7 @@ model UserWordMastery {
   interval     Int       @default(0) // days until next review
   lastSeenAt   DateTime? @map("last_seen_at")
   nextReviewAt DateTime? @map("next_review_at")
+  notebookChecked Boolean   @default(false) @map("notebook_checked")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   word Word @relation(fields: [wordId], references: [id])

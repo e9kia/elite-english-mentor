@@ -1,103 +1,188 @@
-// =====================================================================
-//  prisma/seed.ts
-//  Seeds the 6 levels and 30 units per level (180 units total).
-//  Also creates the default admin user.
-//  Run: npm run db:seed
-// =====================================================================
-
-import { PrismaClient, Role } from "@prisma/client";
-import * as bcrypt from "bcryptjs";
+const { PrismaClient } = require('@prisma/client');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const prisma = new PrismaClient();
 
-const LEVEL_META = [
-  { number: 1, title: "Level 1 — Beginner",        colorTheme: "#4f46e5", description: "Core vocabulary for everyday situations." },
-  { number: 2, title: "Level 2 — Elementary",       colorTheme: "#0891b2", description: "Building blocks of conversational English." },
-  { number: 3, title: "Level 3 — Pre-Intermediate", colorTheme: "#059669", description: "Expanding vocabulary for academic contexts." },
-  { number: 4, title: "Level 4 — Intermediate",     colorTheme: "#d97706", description: "Complex structures and topic-specific words." },
-  { number: 5, title: "Level 5 — Upper-Intermediate",colorTheme: "#dc2626", description: "Advanced academic and professional vocabulary." },
-  { number: 6, title: "Level 6 — Advanced",         colorTheme: "#7c3aed", description: "Sophisticated vocabulary for fluent expression." },
-];
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-const UNIT_TITLES: Record<number, string[]> = {
-  1: [
-    "Family & Relationships","Daily Routines","Food & Drink","Numbers & Time",
-    "Colors & Shapes","Home & Furniture","School & Education","Animals",
-    "Weather & Seasons","Travel & Transport","Shopping","Health & Body",
-    "Jobs & Work","Feelings & Emotions","Nature & Environment","Sports & Hobbies",
-    "Technology & Internet","Money & Finance","Clothes & Fashion","Art & Music",
-    "Science & Discovery","Government & Society","Law & Justice","Communication",
-    "Trade & Business","Culture & Traditions","Religion & Philosophy",
-    "Literature & Writing","History & Geography","Review & Assessment",
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function generateUnit1Content() {
+  const prompt = `
+You are an expert curriculum developer. Generate the exact vocabulary and interactive reading story for Unit 1 of the book "4000 Essential English Words 1 (2nd Edition)".
+
+ELITE HIGH-DENSITY CONSTRAINTS:
+1. Provide exactly 20 words for Unit 1.
+2. For each word, include:
+   - "word", "type", "phonetic" (IPA)
+   - "meaningArabic" (Arabic meaning) and "typeArabic" (Arabic type)
+   - "definition" (comprehensive English definition)
+   - "example" (Main example sentence) and "sentenceArabic" (its Arabic translation)
+   - "sentence2", "sentence2Arabic" (Extra context sentence 1 + translation)
+   - "sentence3", "sentence3Arabic" (Extra context sentence 2 + translation)
+   - "sentence4", "sentence4Arabic" (Extra context sentence 3 + translation)
+   - "synonyms" (exactly 4 synonyms, comma-separated)
+   - "antonyms" (exactly 4 antonyms, comma-separated)
+   - "collocations" (3 key collocations, comma-separated)
+
+3. For the story, inject "The Amalfi Coast" broken into bite-sized 2-3 sentence chunks.
+
+Respond ONLY with a raw, valid JSON object matching exactly this structure:
+{
+  "title": "Unit 1 — The Amalfi Coast",
+  "words": [
+    {
+      "word": "english word",
+      "type": "noun|verb|adjective|...",
+      "phonetic": "/ɪɡˈzæmpəl/",
+      "meaningArabic": "Arabic meaning",
+      "typeArabic": "اسم | فعل | ...",
+      "definition": "Comprehensive definition",
+      "example": "Main example sentence.",
+      "sentenceArabic": "Main example Arabic.",
+      "sentence2": "Extra sentence 2.",
+      "sentence2Arabic": "Extra sentence 2 Arabic.",
+      "sentence3": "Extra sentence 3.",
+      "sentence3Arabic": "Extra sentence 3 Arabic.",
+      "sentence4": "Extra sentence 4.",
+      "sentence4Arabic": "Extra sentence 4 Arabic.",
+      "synonyms": "syn1, syn2, syn3, syn4",
+      "antonyms": "ant1, ant2, ant3, ant4",
+      "collocations": "colloc1, colloc2, colloc3"
+    }
   ],
-};
+  "story": {
+    "title": "The Amalfi Coast",
+    "content": [
+      { "en": "Short English sentence chunk 1.", "ar": "Arabic translation 1." },
+      { "en": "Short English sentence chunk 2.", "ar": "Arabic translation 2." }
+    ],
+    "quizData": [
+      { "question": "Question 1", "options": ["A", "B", "C", "D"], "answerIndex": 0 }
+    ]
+  }
+}
+Note: Ensure valid JSON, no markdown formatting blocks.
+`;
 
-// Levels 2–6 use generic unit titles — replace with real book chapter names later
-for (let lvl = 2; lvl <= 6; lvl++) {
-  UNIT_TITLES[lvl] = Array.from({ length: 30 }, (_, i) => `Unit ${i + 1}`);
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" }
+      });
+      const response = result.response.text();
+      return JSON.parse(response);
+    } catch (err) {
+      console.error("Failed generating Unit 1, retrying...", err.message);
+      retries--;
+      if (retries === 0) throw err;
+      await sleep(2000);
+    }
+  }
 }
 
 async function main() {
-  console.log("🌱  Starting database seed...\n");
+  console.log("Starting Elite Reconstruction Purge...");
 
-  // ── Admin user ──────────────────────────────────────────────────
-  const adminEmail    = process.env.ADMIN_EMAIL    ?? "admin@englearn.com";
-  const adminPassword = process.env.ADMIN_PASSWORD ?? "ChangeMe123!";
-  const hash = await bcrypt.hash(adminPassword, 12);
+  // 1. Purge all existing data
+  await prisma.story.deleteMany({});
+  await prisma.word.deleteMany({});
+  await prisma.unit.deleteMany({});
+  console.log("✓ Purged old low-density data.");
 
-  const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
+  const level = await prisma.level.upsert({
+    where: { number: 1 },
     update: {},
-    create: {
-      email:        adminEmail,
-      username:     "admin",
-      passwordHash: hash,
-      role:         Role.admin,
-    },
+    create: { number: 1, title: "Level 1 — Beginner", colorTheme: "#4f46e5" }
   });
-  console.log(`✅  Admin user: ${admin.email}`);
 
-  // ── Levels & Units ──────────────────────────────────────────────
-  for (const meta of LEVEL_META) {
-    const level = await prisma.level.upsert({
-      where:  { number: meta.number },
-      update: { title: meta.title, colorTheme: meta.colorTheme },
-      create: meta,
+  console.log("\\n=================================");
+  console.log("Synthesizing High-Density Unit 1...");
+  
+  await sleep(2000); // 2-second rate-limit armor
+
+  const data = await generateUnit1Content();
+
+  console.log("✓ Generated Elite JSON for Unit 1. Upserting to Database...");
+
+  const unit = await prisma.unit.upsert({
+    where: { levelId_number: { levelId: level.id, number: 1 } },
+    update: { title: data.title },
+    create: { levelId: level.id, number: 1, title: data.title }
+  });
+
+  for (const w of data.words) {
+    await prisma.word.upsert({
+      where: { unitId_word: { unitId: unit.id, word: w.word.toLowerCase() } },
+      update: {
+        type: w.type,
+        definition: w.definition,
+        example: w.example,
+        meaningArabic: w.meaningArabic,
+        typeArabic: w.typeArabic,
+        sentenceArabic: w.sentenceArabic,
+        sentence2: w.sentence2,
+        sentence2Arabic: w.sentence2Arabic,
+        sentence3: w.sentence3,
+        sentence3Arabic: w.sentence3Arabic,
+        sentence4: w.sentence4,
+        sentence4Arabic: w.sentence4Arabic,
+        synonyms: w.synonyms,
+        antonyms: w.antonyms,
+        collocations: w.collocations,
+        phonetic: w.phonetic || null
+      },
+      create: {
+        unitId: unit.id,
+        word: w.word.toLowerCase(),
+        type: w.type,
+        definition: w.definition,
+        example: w.example,
+        meaningArabic: w.meaningArabic,
+        typeArabic: w.typeArabic,
+        sentenceArabic: w.sentenceArabic,
+        sentence2: w.sentence2,
+        sentence2Arabic: w.sentence2Arabic,
+        sentence3: w.sentence3,
+        sentence3Arabic: w.sentence3Arabic,
+        sentence4: w.sentence4,
+        sentence4Arabic: w.sentence4Arabic,
+        synonyms: w.synonyms,
+        antonyms: w.antonyms,
+        collocations: w.collocations,
+        phonetic: w.phonetic || null,
+        difficulty: 1
+      }
     });
+  }
 
-    const titles = UNIT_TITLES[meta.number];
-    for (let i = 0; i < 30; i++) {
-      await prisma.unit.upsert({
-        where:  { levelId_number: { levelId: level.id, number: i + 1 } },
-        update: { title: titles[i] },
-        create: { levelId: level.id, number: i + 1, title: titles[i] },
-      });
+  await prisma.story.upsert({
+    where: { unitId: unit.id },
+    update: {
+      title: data.story.title,
+      content: data.story.content,
+      quizData: data.story.quizData
+    },
+    create: {
+      unitId: unit.id,
+      title: data.story.title,
+      content: data.story.content,
+      quizData: data.story.quizData
     }
-    console.log(`✅  Level ${meta.number} seeded with 30 units`);
-  }
+  });
 
-  // ── Starter badges ──────────────────────────────────────────────
-  const badges = [
-    { name: "First Word",     description: "Learned your very first word",          conditionType: "words_mastered",   conditionValue: 1  },
-    { name: "Unit Champion",  description: "Completed your first unit",             conditionType: "units_completed",  conditionValue: 1  },
-    { name: "Week Warrior",   description: "Maintained a 7-day streak",             conditionType: "streak_days",      conditionValue: 7  },
-    { name: "Duel Master",    description: "Won 10 duels",                          conditionType: "duels_won",        conditionValue: 10 },
-    { name: "Centurion",      description: "Mastered 100 words",                    conditionType: "words_mastered",   conditionValue: 100},
-    { name: "Level 1 Graduate", description: "Completed all 30 units of Level 1",  conditionType: "units_completed",  conditionValue: 30 },
-  ];
-
-  for (const badge of badges) {
-    await prisma.badge.upsert({
-      where:  { name: badge.name },
-      update: {},
-      create: badge,
-    });
-  }
-  console.log(`✅  ${badges.length} badges seeded`);
-
-  console.log("\n🎉  Seed complete!");
+  console.log("✓ Unit 1 Elite Standard packed successfully. (20 words, 1 story)");
+  console.log("\\n🚀 Phase 2 SEEDING COMPLETE.");
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+  .catch(e => {
+    console.error("SEED FATAL ERROR:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

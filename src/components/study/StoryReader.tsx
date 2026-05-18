@@ -13,10 +13,11 @@ import VoiceButton from "@/components/study/VoiceButton";
 import { useSession } from "next-auth/react";
 
 interface WordData {
-  id: string;
-  word: string;
-  type: string;
-  meaningArabic: string;
+  id: string; word: string; type: string; definition: string; example: string;
+  meaningArabic: string; typeArabic: string; sentenceArabic: string;
+  sentence2: string | null; sentence3: string | null; sentence4: string | null;
+  sentence2Arabic: string | null; sentence3Arabic: string | null; sentence4Arabic: string | null;
+  ipa: string | null; collocations: string | null; antonyms: string | null; synonyms: string | null;
 }
 
 interface StoryContent {
@@ -97,31 +98,112 @@ function ConfettiExplosion({ onDone }: { onDone?: () => void }) {
 
 // ── Word Highlight Component ───────────────────────────────────────────
 function HighlightedWord({ text, wordInfo }: { text: string; wordInfo: WordData }) {
-  const [showTooltip, setShowTooltip] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const additionalSentences = [
+    { en: wordInfo.sentence2, ar: wordInfo.sentence2Arabic },
+    { en: wordInfo.sentence3, ar: wordInfo.sentence3Arabic },
+    { en: wordInfo.sentence4, ar: wordInfo.sentence4Arabic }
+  ].filter(s => s.en);
 
   return (
-    <span className="relative inline-block cursor-pointer group" onClick={(e) => { e.stopPropagation(); setShowTooltip(!showTooltip); }}>
+    <span className="relative inline-block cursor-pointer group" onClick={(e) => { e.stopPropagation(); setShowModal(true); }}>
       <span className="text-gold font-bold underline decoration-gold/40 decoration-wavy underline-offset-4 transition-colors group-hover:text-gold-light">
         {text}
       </span>
 
       <AnimatePresence>
-        {showTooltip && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 5, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 w-max max-w-[200px] elite-card p-3 rounded-xl shadow-xl border border-gold/20 flex flex-col items-center gap-2"
-          >
-            <div className="flex flex-col items-center text-center gap-1">
-              <span className="text-sm font-black text-foreground">{wordInfo.word}</span>
-              <span className="text-[10px] uppercase font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">{wordInfo.type}</span>
-              <span className="text-sm text-primary font-bold mt-1" dir="rtl">{wordInfo.meaningArabic}</span>
-            </div>
-            <VoiceButton word={wordInfo.word} size="sm" />
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-card" />
-          </motion.div>
+        {showModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md cursor-default" onClick={(e) => { e.stopPropagation(); setShowModal(false); }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="elite-card relative w-full max-w-lg bg-neutral-900/95 border border-gold/20 shadow-2xl rounded-3xl overflow-hidden max-h-[85vh] flex flex-col"
+            >
+              {/* Close Button */}
+              <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 h-8 w-8 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors z-10">✕</button>
+              
+              <div className="p-6 sm:p-8 overflow-y-auto">
+                <div className="space-y-6">
+                  {/* Word + Type */}
+                  <div className="flex items-center justify-between flex-wrap gap-2 pr-8">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-3xl sm:text-4xl font-black text-foreground">{wordInfo.word}</h3>
+                      <VoiceButton word={wordInfo.word} size="sm" />
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest border bg-gold/10 text-gold border-gold/30">
+                        {wordInfo.type}
+                      </span>
+                    </div>
+                    {wordInfo.typeArabic && <span className="text-sm font-black border border-gold/20 rounded-lg px-2 py-1 bg-gold/5 text-gold" dir="rtl">{wordInfo.typeArabic}</span>}
+                  </div>
+
+                  {/* Arabic Translation */}
+                  <div className="space-y-1 pb-4 border-b border-white/10">
+                    <p className="text-[9px] font-black text-gold/50 uppercase tracking-[0.4em]">الترجمة</p>
+                    <p className="text-2xl sm:text-3xl text-foreground leading-[1.8] font-bold text-right" dir="rtl">{wordInfo.meaningArabic}</p>
+                  </div>
+
+                  {/* Definition */}
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-primary/50 uppercase tracking-[0.4em]">Definition</p>
+                    <p className="text-sm sm:text-base text-foreground/80 leading-relaxed">{wordInfo.definition}</p>
+                  </div>
+
+                  {/* Primary Sentence */}
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-blue-400/50 uppercase tracking-[0.4em]">Example</p>
+                    <blockquote className="border-l-2 border-primary/30 pl-3 text-sm sm:text-base text-muted-foreground italic leading-relaxed">
+                      &ldquo;{wordInfo.example}&rdquo;
+                    </blockquote>
+                    {wordInfo.sentenceArabic && (
+                      <p className="text-xs sm:text-sm text-muted-foreground/60 text-right pr-3 pt-1" dir="rtl">{wordInfo.sentenceArabic}</p>
+                    )}
+                  </div>
+
+                  {/* Extra Sentences */}
+                  {additionalSentences.length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <div className="flex items-center gap-2 mb-3">
+                        <p className="text-[9px] font-black text-gold/70 uppercase tracking-[0.3em]">جمل إضافية</p>
+                        <div className="flex-1 h-px bg-white/10" />
+                      </div>
+                      {additionalSentences.map((s, i) => (
+                        <div key={i} className="bg-white/5 rounded-xl p-3 border border-white/5">
+                          <p className="text-xs sm:text-sm text-foreground font-medium leading-relaxed mb-1.5">{s.en}</p>
+                          {s.ar && <p className="text-[11px] sm:text-xs text-muted-foreground/80 text-right" dir="rtl">{s.ar}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Metadata */}
+                  {(wordInfo.collocations || wordInfo.synonyms || wordInfo.antonyms) && (
+                    <div className="flex flex-col gap-2 pt-4 border-t border-white/10">
+                      {wordInfo.collocations && (
+                        <div className="text-[10px] text-muted-foreground bg-white/5 rounded-lg p-2.5 border border-white/5">
+                          <span className="font-black text-gold/50 block mb-0.5 uppercase tracking-wider">Collocations</span>
+                          {wordInfo.collocations}
+                        </div>
+                      )}
+                      {wordInfo.synonyms && (
+                        <div className="text-[10px] text-muted-foreground bg-white/5 rounded-lg p-2.5 border border-white/5">
+                          <span className="font-black text-blue-400/50 block mb-0.5 uppercase tracking-wider">Synonyms</span>
+                          {wordInfo.synonyms}
+                        </div>
+                      )}
+                      {wordInfo.antonyms && (
+                        <div className="text-[10px] text-muted-foreground bg-white/5 rounded-lg p-2.5 border border-white/5">
+                          <span className="font-black text-rose-400/50 block mb-0.5 uppercase tracking-wider">Antonyms</span>
+                          {wordInfo.antonyms}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </span>

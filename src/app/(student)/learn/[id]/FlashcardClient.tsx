@@ -18,7 +18,8 @@ interface EnrichedWord {
   id: string; word: string; type: string; definition: string; example: string;
   meaningArabic: string; typeArabic: string; sentenceArabic: string;
   sentence2: string | null; sentence3: string | null; sentence4: string | null;
-  ipa: string | null; collocations: string | null; antonyms: string | null;
+  sentence2Arabic: string | null; sentence3Arabic: string | null; sentence4Arabic: string | null;
+  ipa: string | null; collocations: string | null; antonyms: string | null; synonyms: string | null;
 }
 
 // ── Word Type → Color ────────────────────────────────────────────────
@@ -28,7 +29,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; border: string; ba
   adjective:   { bg: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/30", badge: "bg-purple-500" },
   adverb:      { bg: "bg-teal-500/10",   text: "text-teal-400",   border: "border-teal-500/30",   badge: "bg-teal-500"   },
   preposition: { bg: "bg-pink-500/10",   text: "text-pink-400",   border: "border-pink-500/30",   badge: "bg-pink-500"   },
-  phrase:      { bg: "bg-cyan-500/10",    text: "text-cyan-400",   border: "border-cyan-500/30",   badge: "bg-cyan-500"   },
+  phrase:      { bg: "bg-cyan-500/10",   text: "text-cyan-400",   border: "border-cyan-500/30",   badge: "bg-cyan-500"   },
   other:       { bg: "bg-slate-500/10",  text: "text-slate-400",  border: "border-slate-500/30",  badge: "bg-slate-500"  },
 };
 
@@ -36,11 +37,11 @@ function getTypeColor(type: string) {
   return TYPE_COLORS[type.toLowerCase()] ?? TYPE_COLORS.other;
 }
 
-// ── 3 Arabic SRS Buttons ─────────────────────────────────────────────
-const SRS_BUTTONS: { label: string; sub: string; rating: SrsRating; color: string; icon: string; glow: string }[] = [
-  { label: "جديدة",    sub: "New Word",       rating: 1, color: "from-rose-500 to-red-600",      icon: "🔴", glow: "shadow-rose-500/30"    },
-  { label: "نص نص",    sub: "Half-Half",      rating: 2, color: "from-amber-500 to-yellow-600",  icon: "🟡", glow: "shadow-amber-500/30"   },
-  { label: "أعرفها",   sub: "I Know It",      rating: 3, color: "from-emerald-500 to-green-600", icon: "🟢", glow: "shadow-emerald-500/30" },
+// ── 3 Arabic SRS Buttons (Luxury Space) ──────────────────────────────
+const SRS_BUTTONS: { label: string; sub: string; rating: SrsRating; borderGlow: string; dotColor: string }[] = [
+  { label: "جديدة",    sub: "New Word",       rating: 1, borderGlow: "border-rose-500/30 hover:border-rose-500/60 shadow-rose-500/10", dotColor: "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]" },
+  { label: "نص نص",    sub: "Half-Half",      rating: 2, borderGlow: "border-amber-500/30 hover:border-amber-500/60 shadow-amber-500/10", dotColor: "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]" },
+  { label: "أعرفها",   sub: "I Know It",      rating: 3, borderGlow: "border-emerald-500/30 hover:border-emerald-500/60 shadow-emerald-500/10", dotColor: "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" },
 ];
 
 // ── Confetti ─────────────────────────────────────────────────────────
@@ -175,7 +176,7 @@ export default function FlashcardClient({
     return (
       <StoryReader
         story={story}
-        words={words.map(w => ({ id: w.id, word: w.word, type: w.type, meaningArabic: w.meaningArabic }))}
+        words={words}
         unitId={unitId}
       />
     );
@@ -338,11 +339,16 @@ export default function FlashcardClient({
               )}
 
               {/* Metadata badges */}
-              {(current.collocations || current.antonyms) && (
+              {(current.collocations || current.antonyms || current.synonyms) && (
                 <div className="flex flex-wrap gap-2 pt-2">
                   {current.collocations && (
                     <div className="text-[9px] sm:text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1 border border-border/20">
                       <span className="font-black text-gold/50 mr-1">Collocations:</span>{current.collocations}
+                    </div>
+                  )}
+                  {current.synonyms && (
+                    <div className="text-[9px] sm:text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1 border border-border/20">
+                      <span className="font-black text-blue-400/50 mr-1">Synonyms:</span>{current.synonyms}
                     </div>
                   )}
                   {current.antonyms && (
@@ -362,22 +368,24 @@ export default function FlashcardClient({
         <p className="text-[8px] sm:text-[9px] font-black text-muted-foreground/30 uppercase tracking-[0.3em] sm:tracking-[0.4em] text-center mb-3">
           {isFlipped && !isRated ? "كيف تعرف هذه الكلمة؟" : isRated ? "✅ تم التقييم — جاري الانتقال..." : "اقلب البطاقة للتقييم"}
         </p>
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 w-full">
           {SRS_BUTTONS.map((btn) => (
             <button
               key={btn.rating}
               onClick={(e) => { e.stopPropagation(); handleRate(btn.rating); }}
               disabled={isPending || !isFlipped || isRated}
               className={cn(
-                "srs-btn py-3 sm:py-4 rounded-xl sm:rounded-2xl text-white font-bold text-sm bg-gradient-to-b shadow-lg transition-all border border-white/10",
-                "disabled:opacity-30 disabled:cursor-not-allowed disabled:scale-100",
-                isFlipped && !isRated ? `hover:scale-105 hover:shadow-xl active:scale-95 ${btn.glow}` : "",
-                btn.color
+                "group relative w-full flex items-center justify-between sm:flex-col sm:justify-center p-4 sm:py-5 min-h-[48px] sm:min-h-[64px] rounded-xl sm:rounded-2xl transition-all duration-300",
+                "bg-neutral-900/90 backdrop-blur-xl border border-white/5",
+                "disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100",
+                isFlipped && !isRated ? `hover:bg-neutral-800/90 active:scale-[0.98] shadow-lg ${btn.borderGlow}` : ""
               )}
             >
-              <span className="block text-lg sm:text-xl mb-0.5 sm:mb-1">{btn.icon}</span>
-              <span className="block font-black text-sm sm:text-base" dir="rtl">{btn.label}</span>
-              <span className="block text-[9px] sm:text-[10px] opacity-60 mt-0.5">{btn.sub}</span>
+              <div className="flex flex-col items-start sm:items-center">
+                <span className="block font-black text-sm sm:text-base text-foreground" dir="rtl">{btn.label}</span>
+                <span className="block text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">{btn.sub}</span>
+              </div>
+              <span className={cn("h-2.5 w-2.5 sm:mt-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]", btn.dotColor)} style={{ boxShadow: `0 0 10px var(--tw-shadow-color)` }} />
             </button>
           ))}
         </div>
