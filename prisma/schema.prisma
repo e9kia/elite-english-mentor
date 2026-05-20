@@ -195,6 +195,7 @@ model Word {
   word       String
   type       WordType
   definition String
+  definitionArabic String? @map("definition_arabic") // Arabic translation of definition
   example    String
   phonetic   String? // IPA string, e.g. /ˈfæmɪli/
   audioUrl   String?  @map("audio_url") // TTS-generated audio file URL
@@ -213,9 +214,12 @@ model Word {
   sentence4      String? @map("sentence_4")        // Additional contextual sentence 4
   sentence4Arabic String? @map("sentence_4_arabic")
   ipa            String?                           // IPA pronunciation override
-  collocations   String?                           // Comma-separated collocations
-  synonyms       String?                           // Comma-separated synonyms
-  antonyms       String?                           // Comma-separated antonyms
+  collocations      String?                        // Comma-separated collocations (English)
+  collocationsArabic String? @map("collocations_arabic") // Arabic collocations
+  synonyms          String?                        // Comma-separated synonyms (English)
+  synonymsArabic    String? @map("synonyms_arabic")  // Arabic synonyms
+  antonyms          String?                        // Comma-separated antonyms (English)
+  antonymsArabic    String? @map("antonyms_arabic")  // Arabic antonyms
 
   // ── Import tracking ──
   importBatchId String?  @map("import_batch_id") // links to ImportBatch.id

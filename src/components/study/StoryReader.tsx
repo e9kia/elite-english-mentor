@@ -15,9 +15,13 @@ import { useSession } from "next-auth/react";
 interface WordData {
   id: string; word: string; type: string; definition: string; example: string;
   meaningArabic: string; typeArabic: string; sentenceArabic: string;
+  definitionArabic: string | null;
   sentence2: string | null; sentence3: string | null; sentence4: string | null;
   sentence2Arabic: string | null; sentence3Arabic: string | null; sentence4Arabic: string | null;
-  ipa: string | null; collocations: string | null; antonyms: string | null; synonyms: string | null;
+  ipa: string | null;
+  collocations: string | null; collocationsArabic: string | null;
+  synonyms: string | null; synonymsArabic: string | null;
+  antonyms: string | null; antonymsArabic: string | null;
 }
 
 interface StoryContent {

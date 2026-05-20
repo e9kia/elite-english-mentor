@@ -244,3 +244,35 @@ export async function completeUnit({
 
   return { completed: true, xpEarned: totalXp };
 }
+
+// ── Toggle notebook check (per-user, per-word) ──────────────────────
+
+export async function toggleNotebookCheck({
+  wordId,
+  isChecked,
+  userId,
+}: {
+  wordId: string;
+  isChecked: boolean;
+  userId?: string;
+}) {
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    const admin = await prisma.user.findFirst({ where: { role: "admin" }, select: { id: true } });
+    resolvedUserId = admin?.id ?? "dev-user-id";
+  }
+
+  await prisma.userWordMastery.upsert({
+    where: { userId_wordId: { userId: resolvedUserId, wordId } },
+    create: {
+      userId: resolvedUserId,
+      wordId,
+      notebookChecked: isChecked,
+    },
+    update: {
+      notebookChecked: isChecked,
+    },
+  });
+
+  return { success: true, isChecked };
+}

@@ -1,25 +1,29 @@
 "use client";
 // =====================================================================
-//  FlashcardClient.tsx — Pure DB Edition
+//  FlashcardClient.tsx — Prestige Edition
 //  3 Arabic SRS Buttons: جديدة / نص نص / أعرفها
-//  Zero AI latency · Elite Midnight Gold
-//  Designed by Ali Jitam ❤️
+//  Universal Bilingual · Luxury Dark Glow · Notebook Tracker
+//  Designed by Ali Jitam ❤️ · Architected by Claude Opus
 // =====================================================================
 
-import { useState, useEffect, useCallback, useMemo, useTransition } from "react";
+import { useState, useEffect, useCallback, useMemo, useTransition, useOptimistic } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { rateWord, saveWordProgress, completeUnit, type SrsRating } from "@/app/actions/study";
+import { rateWord, saveWordProgress, completeUnit, toggleNotebookCheck, type SrsRating } from "@/app/actions/study";
 import { useSession } from "next-auth/react";
 import VoiceButton from "@/components/study/VoiceButton";
 import StoryReader from "@/components/study/StoryReader";
 
-interface EnrichedWord {
+export interface EnrichedWord {
   id: string; word: string; type: string; definition: string; example: string;
   meaningArabic: string; typeArabic: string; sentenceArabic: string;
+  definitionArabic: string | null;
   sentence2: string | null; sentence3: string | null; sentence4: string | null;
   sentence2Arabic: string | null; sentence3Arabic: string | null; sentence4Arabic: string | null;
-  ipa: string | null; collocations: string | null; antonyms: string | null; synonyms: string | null;
+  ipa: string | null;
+  collocations: string | null; collocationsArabic: string | null;
+  synonyms: string | null; synonymsArabic: string | null;
+  antonyms: string | null; antonymsArabic: string | null;
 }
 
 // ── Word Type → Color ────────────────────────────────────────────────
@@ -32,17 +36,50 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; border: string; ba
   phrase:      { bg: "bg-cyan-500/10",   text: "text-cyan-400",   border: "border-cyan-500/30",   badge: "bg-cyan-500"   },
   other:       { bg: "bg-slate-500/10",  text: "text-slate-400",  border: "border-slate-500/30",  badge: "bg-slate-500"  },
 };
-
 function getTypeColor(type: string) {
   return TYPE_COLORS[type.toLowerCase()] ?? TYPE_COLORS.other;
 }
 
-// ── 3 Arabic SRS Buttons (Luxury Space) ──────────────────────────────
-const SRS_BUTTONS: { label: string; sub: string; rating: SrsRating; borderGlow: string; dotColor: string }[] = [
-  { label: "جديدة",    sub: "New Word",       rating: 1, borderGlow: "border-rose-500/30 hover:border-rose-500/60 shadow-rose-500/10", dotColor: "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]" },
-  { label: "نص نص",    sub: "Half-Half",      rating: 2, borderGlow: "border-amber-500/30 hover:border-amber-500/60 shadow-amber-500/10", dotColor: "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]" },
-  { label: "أعرفها",   sub: "I Know It",      rating: 3, borderGlow: "border-emerald-500/30 hover:border-emerald-500/60 shadow-emerald-500/10", dotColor: "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" },
+// ── 3 Arabic SRS Buttons (Luxury Dark Glow) ──────────────────────────
+const SRS_BUTTONS: { label: string; sub: string; rating: SrsRating; glowBorder: string; glowShadow: string; dotColor: string; hoverGlow: string }[] = [
+  {
+    label: "جديدة", sub: "New Word", rating: 1,
+    glowBorder: "border-rose-500/20", glowShadow: "shadow-rose-500/0",
+    dotColor: "bg-rose-500", hoverGlow: "hover:border-rose-500/60 hover:shadow-[0_0_20px_rgba(244,63,94,0.15)]"
+  },
+  {
+    label: "نص نص", sub: "Half-Half", rating: 2,
+    glowBorder: "border-amber-500/20", glowShadow: "shadow-amber-500/0",
+    dotColor: "bg-amber-500", hoverGlow: "hover:border-amber-500/60 hover:shadow-[0_0_20px_rgba(245,158,11,0.15)]"
+  },
+  {
+    label: "أعرفها", sub: "I Know It", rating: 3,
+    glowBorder: "border-emerald-500/20", glowShadow: "shadow-emerald-500/0",
+    dotColor: "bg-emerald-500", hoverGlow: "hover:border-emerald-500/60 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+  },
 ];
+
+// ── Bilingual Pair Renderer ──────────────────────────────────────────
+function BilingualPairGrid({ items, arabicItems, accentColor }: { items: string; arabicItems: string | null; accentColor: string }) {
+  const en = items.split(",").map(s => s.trim()).filter(Boolean);
+  const ar = arabicItems?.split(",").map(s => s.trim()) ?? [];
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {en.map((word, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.05 }}
+          className={cn("flex flex-col gap-0.5 bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 transition-colors hover:border-white/10")}
+        >
+          <span className={cn("text-sm font-bold text-foreground", accentColor)}>{word}</span>
+          {ar[i] && <span className="text-xs text-muted-foreground/70 font-medium" dir="rtl">{ar[i]}</span>}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
 
 // ── Confetti ─────────────────────────────────────────────────────────
 function ConfettiExplosion() {
@@ -108,6 +145,7 @@ export default function FlashcardClient({
   const [ratedIds, setRatedIds] = useState<Set<string>>(new Set());
   const [lastXp, setLastXp] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [notebookChecked, setNotebookChecked] = useState(false);
 
   const current = words[index];
   const isRated = ratedIds.has(current.id);
@@ -115,8 +153,25 @@ export default function FlashcardClient({
   const typeColor = getTypeColor(current.type);
   const progress = Math.round(((maxUnlocked + 1) / words.length) * 100);
 
-  // Collect additional sentences for display
-  const additionalSentences = [current.sentence2, current.sentence3, current.sentence4].filter(Boolean) as string[];
+  // Build bilingual sentence list
+  const additionalSentences = [
+    { en: current.sentence2, ar: current.sentence2Arabic },
+    { en: current.sentence3, ar: current.sentence3Arabic },
+    { en: current.sentence4, ar: current.sentence4Arabic },
+  ].filter(s => s.en);
+
+  // Reset notebook checkbox when switching words
+  useEffect(() => { setNotebookChecked(false); }, [index]);
+
+  const handleNotebookToggle = useCallback(() => {
+    const newVal = !notebookChecked;
+    setNotebookChecked(newVal);
+    startTransition(async () => {
+      try {
+        await toggleNotebookCheck({ wordId: current.id, isChecked: newVal, userId: session?.user?.id });
+      } catch (e) { console.error("Notebook toggle failed:", e); }
+    });
+  }, [notebookChecked, current.id, session?.user?.id]);
 
   const handleRate = useCallback((rating: SrsRating) => {
     if (isRated) return;
@@ -138,27 +193,19 @@ export default function FlashcardClient({
           setIsFlipped(false);
           setTimeout(() => {
             if (index + 1 >= words.length) {
-              if (story) {
-                setShowStory(true);
-              } else {
-                completeUnit({ userId: session?.user?.id, unitId });
-                setShowConfetti(true);
-              }
-            } else {
-              setIndex(prev => prev + 1);
-            }
+              if (story) { setShowStory(true); }
+              else { completeUnit({ userId: session?.user?.id, unitId }); setShowConfetti(true); }
+            } else { setIndex(prev => prev + 1); }
           }, 250);
         }, 500);
-      } catch (e) {
-        console.error("Failed to rate word:", e);
-      }
+      } catch (e) { console.error("Failed to rate word:", e); }
     });
-  }, [current.id, index, isRated, session?.user?.id, unitId, words.length]);
+  }, [current.id, index, isRated, session?.user?.id, unitId, words.length, story]);
 
   // Keyboard
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (showConfetti) return;
+      if (showConfetti || showStory) return;
       if (e.key === " ") { e.preventDefault(); setIsFlipped(f => !f); }
       if (isFlipped && !isRated) {
         if (e.key === "1") handleRate(1);
@@ -173,13 +220,7 @@ export default function FlashcardClient({
   if (showConfetti) return <ConfettiExplosion />;
 
   if (showStory && story) {
-    return (
-      <StoryReader
-        story={story}
-        words={words}
-        unitId={unitId}
-      />
-    );
+    return <StoryReader story={story} words={words} unitId={unitId} />;
   }
 
   return (
@@ -278,14 +319,14 @@ export default function FlashcardClient({
 
           {/* ─── BACK ─── */}
           <div
-            className="absolute inset-0 w-full elite-card rounded-[2rem] sm:rounded-[3rem] p-4 sm:p-6 md:p-10 flex flex-col justify-start border-2 border-gold/15 shadow-2xl min-h-[320px] sm:min-h-[420px] overflow-y-auto"
+            className="absolute inset-0 w-full elite-card rounded-[2rem] sm:rounded-[3rem] p-4 sm:p-6 md:p-8 flex flex-col justify-start border-2 border-gold/15 shadow-2xl min-h-[320px] sm:min-h-[420px] overflow-y-auto"
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
-            <div className="space-y-3 sm:space-y-4">
-              {/* Word + Type */}
+            <div className="space-y-5 sm:space-y-6">
+              {/* ── Word + Type Header ── */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xl sm:text-2xl font-black text-foreground">{current.word}</h3>
+                  <h3 className="text-2xl sm:text-3xl font-black text-foreground">{current.word}</h3>
                   <VoiceButton word={current.word} size="sm" />
                   <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest border",
                     typeColor.bg, typeColor.text, typeColor.border)}>
@@ -297,96 +338,184 @@ export default function FlashcardClient({
                 </span>
               </div>
 
-              {/* Arabic Translation */}
-              <div className="space-y-1 pb-3 border-b border-border/20">
-                <p className="text-[8px] font-black text-gold/50 uppercase tracking-[0.4em]">الترجمة</p>
-                <p className="text-xl sm:text-2xl md:text-3xl text-foreground leading-[1.8] font-bold text-right" dir="rtl">{current.meaningArabic}</p>
+              {/* ── Arabic Translation ── */}
+              <div className="space-y-1 pb-4 border-b border-white/[0.06]">
+                <p className="text-[9px] font-black text-gold/50 uppercase tracking-[0.4em]">الترجمة</p>
+                <p className="text-2xl sm:text-3xl text-foreground leading-[1.8] font-bold text-right" dir="rtl">{current.meaningArabic}</p>
               </div>
 
-              {/* Definition */}
-              <div className="space-y-1">
-                <p className="text-[8px] font-black text-primary/50 uppercase tracking-[0.4em]">Definition</p>
-                <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed">{current.definition}</p>
-              </div>
-
-              {/* Primary Sentence + Arabic */}
-              <div className="space-y-1">
-                <p className="text-[8px] font-black text-blue-400/50 uppercase tracking-[0.4em]">Example</p>
-                <blockquote className="border-l-2 border-primary/30 pl-3 text-xs sm:text-sm text-muted-foreground italic leading-relaxed">
-                  &ldquo;{current.example}&rdquo;
-                </blockquote>
-                {current.sentenceArabic && (
-                  <p className="text-xs text-muted-foreground/60 text-right pr-3" dir="rtl">{current.sentenceArabic}</p>
+              {/* ── Definition (Bilingual) ── */}
+              <div className="space-y-2 pb-4 border-b border-white/[0.06]">
+                <p className="text-[9px] font-black text-primary/50 uppercase tracking-[0.4em]">التعريف · Definition</p>
+                <p className="text-sm sm:text-base text-foreground/90 leading-relaxed font-medium">{current.definition}</p>
+                {current.definitionArabic && (
+                  <p className="text-sm text-muted-foreground/70 leading-relaxed text-right font-medium" dir="rtl">{current.definitionArabic}</p>
                 )}
               </div>
 
-              {/* Additional Contextual Sentences */}
+              {/* ── Primary Example (Bilingual) ── */}
+              <div className="space-y-2">
+                <p className="text-[9px] font-black text-blue-400/50 uppercase tracking-[0.4em]">مثال · Example</p>
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                  <blockquote className="text-sm sm:text-base text-foreground/90 font-medium leading-relaxed">
+                    &ldquo;{current.example}&rdquo;
+                  </blockquote>
+                  {current.sentenceArabic && (
+                    <p className="text-sm text-muted-foreground/60 text-right mt-2 pt-2 border-t border-white/[0.04]" dir="rtl">{current.sentenceArabic}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Additional Contextual Sentences (Bilingual) ── */}
               {additionalSentences.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[8px] font-black text-gold/70 uppercase tracking-[0.3em]">جمل إضافية</p>
-                    <div className="flex-1 h-px bg-border/20" />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <p className="text-[9px] font-black text-gold/70 uppercase tracking-[0.3em]">جمل إضافية · More Examples</p>
+                    <div className="flex-1 h-px bg-white/[0.06]" />
                   </div>
                   {additionalSentences.map((s, i) => (
-                    <div key={i} className="elite-card rounded-lg sm:rounded-xl p-2.5 sm:p-3 border border-border/30 hover:border-gold/20 transition-colors">
-                      <div className="flex items-start gap-2">
-                        <span className="h-4 w-4 sm:h-5 sm:w-5 rounded-md bg-gold/10 flex items-center justify-center text-[8px] sm:text-[9px] font-black text-gold shrink-0 mt-0.5">{i + 1}</span>
-                        <p className="text-[11px] sm:text-xs text-foreground font-medium leading-relaxed">{s}</p>
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.06] hover:border-gold/15 transition-colors"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="h-6 w-6 rounded-lg bg-gold/10 flex items-center justify-center text-[10px] font-black text-gold shrink-0 mt-0.5">{i + 1}</span>
+                        <div className="space-y-1.5 flex-1">
+                          <p className="text-sm text-foreground font-medium leading-relaxed">{s.en}</p>
+                          {s.ar && <p className="text-xs text-muted-foreground/60 text-right" dir="rtl">{s.ar}</p>}
+                        </div>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               )}
 
-              {/* Metadata badges */}
-              {(current.collocations || current.antonyms || current.synonyms) && (
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {current.collocations && (
-                    <div className="text-[9px] sm:text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1 border border-border/20">
-                      <span className="font-black text-gold/50 mr-1">Collocations:</span>{current.collocations}
+              {/* ═══ GRAND SYNONYMS SECTION ═══ */}
+              {current.synonyms && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-6 w-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <span className="text-blue-400 text-xs font-black">≈</span>
                     </div>
-                  )}
-                  {current.synonyms && (
-                    <div className="text-[9px] sm:text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1 border border-border/20">
-                      <span className="font-black text-blue-400/50 mr-1">Synonyms:</span>{current.synonyms}
-                    </div>
-                  )}
-                  {current.antonyms && (
-                    <div className="text-[9px] sm:text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1 border border-border/20">
-                      <span className="font-black text-rose-400/50 mr-1">Antonyms:</span>{current.antonyms}
-                    </div>
-                  )}
+                    <p className="text-xs font-black text-blue-400/80 uppercase tracking-[0.3em]">المرادفات · Synonyms</p>
+                    <div className="flex-1 h-px bg-blue-500/10" />
+                  </div>
+                  <BilingualPairGrid items={current.synonyms} arabicItems={current.synonymsArabic} accentColor="text-blue-400" />
                 </div>
               )}
+
+              {/* ═══ GRAND ANTONYMS SECTION ═══ */}
+              {current.antonyms && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-6 w-6 rounded-lg bg-rose-500/10 flex items-center justify-center">
+                      <span className="text-rose-400 text-xs font-black">⇔</span>
+                    </div>
+                    <p className="text-xs font-black text-rose-400/80 uppercase tracking-[0.3em]">الأضداد · Antonyms</p>
+                    <div className="flex-1 h-px bg-rose-500/10" />
+                  </div>
+                  <BilingualPairGrid items={current.antonyms} arabicItems={current.antonymsArabic} accentColor="text-rose-400" />
+                </div>
+              )}
+
+              {/* ═══ GRAND COLLOCATIONS SECTION ═══ */}
+              {current.collocations && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-6 w-6 rounded-lg bg-gold/10 flex items-center justify-center">
+                      <span className="text-gold text-xs font-black">⟨⟩</span>
+                    </div>
+                    <p className="text-xs font-black text-gold/80 uppercase tracking-[0.3em]">الاستعمالات الشائعة · Collocations</p>
+                    <div className="flex-1 h-px bg-gold/10" />
+                  </div>
+                  <div className="space-y-2">
+                    {current.collocations.split(",").map((col, i) => {
+                      const arCols = current.collocationsArabic?.split(",") ?? [];
+                      return (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.08 }}
+                          className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="h-7 w-7 rounded-lg bg-gold/10 flex items-center justify-center text-[10px] font-black text-gold shrink-0">{i + 1}</span>
+                            <span className="text-sm font-bold text-foreground">{col.trim()}</span>
+                          </div>
+                          {arCols[i] && <span className="text-sm text-muted-foreground/60 font-medium" dir="rtl">{arCols[i].trim()}</span>}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ═══ NOTEBOOK TRACKER ═══ */}
+              <motion.button
+                onClick={(e) => { e.stopPropagation(); handleNotebookToggle(); }}
+                className={cn(
+                  "w-full flex items-center justify-center gap-3 py-4 rounded-2xl border transition-all duration-300",
+                  notebookChecked
+                    ? "bg-gold/10 border-gold/30 text-gold shadow-[0_0_20px_rgba(200,169,97,0.1)]"
+                    : "bg-white/[0.02] border-white/[0.06] text-muted-foreground hover:border-gold/20 hover:text-gold/70"
+                )}
+                whileTap={{ scale: 0.98 }}
+              >
+                <span className={cn(
+                  "h-5 w-5 rounded-md border-2 flex items-center justify-center transition-all duration-300",
+                  notebookChecked ? "bg-gold border-gold text-black" : "border-muted-foreground/30"
+                )}>
+                  {notebookChecked && <span className="text-xs font-black">✓</span>}
+                </span>
+                <span className="font-bold text-sm" dir="rtl">تم التدوين في الدفتر الملكي 📝</span>
+              </motion.button>
             </div>
           </div>
         </motion.div>
       </div>
 
-      {/* ═══ 3 ARABIC SRS BUTTONS ═══ */}
+      {/* ═══ 3 ARABIC SRS BUTTONS (LUXURY DARK GLOW) ═══ */}
       <div className="w-full max-w-2xl">
         <p className="text-[8px] sm:text-[9px] font-black text-muted-foreground/30 uppercase tracking-[0.3em] sm:tracking-[0.4em] text-center mb-3">
           {isFlipped && !isRated ? "كيف تعرف هذه الكلمة؟" : isRated ? "✅ تم التقييم — جاري الانتقال..." : "اقلب البطاقة للتقييم"}
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 w-full">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full">
           {SRS_BUTTONS.map((btn) => (
-            <button
+            <motion.button
               key={btn.rating}
               onClick={(e) => { e.stopPropagation(); handleRate(btn.rating); }}
               disabled={isPending || !isFlipped || isRated}
+              whileTap={{ scale: 0.95 }}
+              whileHover={isFlipped && !isRated ? { y: -2 } : {}}
               className={cn(
-                "group relative w-full flex items-center justify-between sm:flex-col sm:justify-center p-4 sm:py-5 min-h-[48px] sm:min-h-[64px] rounded-xl sm:rounded-2xl transition-all duration-300",
-                "bg-neutral-900/90 backdrop-blur-xl border border-white/5",
-                "disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100",
-                isFlipped && !isRated ? `hover:bg-neutral-800/90 active:scale-[0.98] shadow-lg ${btn.borderGlow}` : ""
+                "group relative w-full flex flex-col items-center justify-center py-5 sm:py-6 min-h-[72px] sm:min-h-[80px] rounded-2xl transition-all duration-300",
+                "bg-black border",
+                "disabled:opacity-30 disabled:cursor-not-allowed",
+                btn.glowBorder,
+                isFlipped && !isRated ? btn.hoverGlow : ""
               )}
             >
-              <div className="flex flex-col items-start sm:items-center">
-                <span className="block font-black text-sm sm:text-base text-foreground" dir="rtl">{btn.label}</span>
-                <span className="block text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">{btn.sub}</span>
-              </div>
-              <span className={cn("h-2.5 w-2.5 sm:mt-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]", btn.dotColor)} style={{ boxShadow: `0 0 10px var(--tw-shadow-color)` }} />
-            </button>
+              {/* Jewel dot at top */}
+              <span className={cn(
+                "h-2 w-2 rounded-full mb-2.5 transition-all duration-500",
+                btn.dotColor,
+                isFlipped && !isRated ? "shadow-[0_0_12px_currentColor] opacity-100" : "opacity-40"
+              )} />
+              <span className="block font-black text-base sm:text-lg text-foreground leading-tight" dir="rtl">{btn.label}</span>
+              <span className="block text-[10px] sm:text-[11px] text-muted-foreground/50 mt-1 font-medium">{btn.sub}</span>
+              {/* Bottom edge glow */}
+              <div className={cn(
+                "absolute bottom-0 left-1/2 -translate-x-1/2 h-px w-0 transition-all duration-500",
+                isFlipped && !isRated ? "group-hover:w-3/4" : "",
+                btn.rating === 1 ? "bg-gradient-to-r from-transparent via-rose-500 to-transparent"
+                  : btn.rating === 2 ? "bg-gradient-to-r from-transparent via-amber-500 to-transparent"
+                  : "bg-gradient-to-r from-transparent via-emerald-500 to-transparent"
+              )} />
+            </motion.button>
           ))}
         </div>
       </div>

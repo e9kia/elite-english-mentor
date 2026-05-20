@@ -1,13 +1,13 @@
 // =====================================================================
 //  src/app/(student)/learn/[id]/page.tsx
-//  Unit Learn Page — Pure DB, Zero AI Latency
-//  Designed by Ali Jitam ❤️
+//  Unit Learn Page — Pure DB, Zero AI Latency · Prestige Edition
+//  Designed by Ali Jitam ❤️ · Architected by Claude Opus
 // =====================================================================
 
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import FlashcardClient from "./FlashcardClient";
+import FlashcardClient, { type EnrichedWord } from "./FlashcardClient";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
@@ -20,48 +20,12 @@ const TYPE_ARABIC: Record<string, string> = {
   phrase: "عبارة", other: "أخرى",
 };
 
-// Fallback Arabic translations (top words)
-const KNOWN_AR: Record<string, string> = {
-  abandon:"يتخلى عن",ability:"قدرة",absence:"غياب",absorb:"يمتص",abstract:"مجرد",
-  abundant:"وفير",academic:"أكاديمي",accomplish:"ينجز",accurate:"دقيق",achieve:"يحقق",
-  accept:"يقبل",access:"وصول",account:"حساب",act:"يتصرف",action:"فعل / عمل",
-  active:"نشط",actually:"فعلياً",add:"يضيف",address:"عنوان",admit:"يعترف",
-  adult:"بالغ",advance:"يتقدم",advantage:"ميزة",advice:"نصيحة",affect:"يؤثر",
-  afraid:"خائف",age:"عمر",agree:"يوافق",allow:"يسمح",almost:"تقريباً",
-  alone:"وحيد",already:"بالفعل",also:"أيضاً",always:"دائماً",amount:"كمية",
-  ancient:"قديم",animal:"حيوان",announce:"يعلن",answer:"جواب",appear:"يظهر",
-  apply:"يطبق",approach:"يقترب",area:"منطقة",argue:"يجادل",arrange:"يرتب",
-  arrive:"يصل",article:"مقال",attempt:"محاولة",attention:"انتباه",authority:"سلطة",
-  available:"متاح",avoid:"يتجنب",aware:"واعٍ",balance:"توازن",base:"قاعدة",
-  basic:"أساسي",beautiful:"جميل",because:"لأن",become:"يصبح",before:"قبل",
-  begin:"يبدأ",behind:"خلف",believe:"يعتقد",benefit:"فائدة",best:"أفضل",
-  family:"عائلة",friend:"صديق",happy:"سعيد",home:"منزل",idea:"فكرة",
-  important:"مهم",know:"يعرف",learn:"يتعلم",life:"حياة",love:"حب",
-};
-
-export interface EnrichedWord {
-  id: string;
-  word: string;
-  type: string;
-  definition: string;
-  example: string;
-  meaningArabic: string;
-  typeArabic: string;
-  sentenceArabic: string;
-  sentence2: string | null;
-  sentence3: string | null;
-  sentence4: string | null;
-  ipa: string | null;
-  collocations: string | null;
-  antonyms: string | null;
-}
-
 export default async function LearnPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const unitId = parseInt(id);
   if (isNaN(unitId)) return notFound();
 
-  // Optimized query — select only needed fields, no heavy relations
+  // Optimized query — select ALL bilingual fields
   const unit = await prisma.unit.findUnique({
     where: { id: unitId },
     select: {
@@ -71,10 +35,15 @@ export default async function LearnPage({ params }: { params: Promise<{ id: stri
       words: {
         orderBy: { word: "asc" },
         select: {
-          id: true, word: true, type: true, definition: true, example: true,
-          meaningArabic: true, typeArabic: true, sentenceArabic: true,
-          sentence2: true, sentence3: true, sentence4: true,
-          ipa: true, collocations: true, antonyms: true,
+          id: true, word: true, type: true, definition: true, definitionArabic: true,
+          example: true, meaningArabic: true, typeArabic: true, sentenceArabic: true,
+          sentence2: true, sentence2Arabic: true,
+          sentence3: true, sentence3Arabic: true,
+          sentence4: true, sentence4Arabic: true,
+          ipa: true,
+          collocations: true, collocationsArabic: true,
+          synonyms: true, synonymsArabic: true,
+          antonyms: true, antonymsArabic: true,
         },
       },
     },
@@ -105,16 +74,24 @@ export default async function LearnPage({ params }: { params: Promise<{ id: stri
     word: w.word,
     type: w.type,
     definition: w.definition,
+    definitionArabic: w.definitionArabic || null,
     example: w.example,
-    meaningArabic: w.meaningArabic || KNOWN_AR[w.word.toLowerCase()] || w.definition,
+    meaningArabic: w.meaningArabic || w.definition,
     typeArabic: w.typeArabic || TYPE_ARABIC[w.type.toLowerCase()] || "أخرى",
     sentenceArabic: w.sentenceArabic || "",
     sentence2: w.sentence2,
+    sentence2Arabic: w.sentence2Arabic,
     sentence3: w.sentence3,
+    sentence3Arabic: w.sentence3Arabic,
     sentence4: w.sentence4,
+    sentence4Arabic: w.sentence4Arabic,
     ipa: w.ipa,
     collocations: w.collocations,
+    collocationsArabic: w.collocationsArabic,
+    synonyms: w.synonyms,
+    synonymsArabic: w.synonymsArabic,
     antonyms: w.antonyms,
+    antonymsArabic: w.antonymsArabic,
   }));
 
   if (enrichedWords.length === 0) {
