@@ -40,12 +40,47 @@ declare module "next-auth/jwt" {
   }
 }
 
+// Simple in-memory login rate limiter for brute-force mitigation
+const loginFailures = new Map<string, { count: number; lockUntil: number }>();
+
+function trackFailedLogin(emailKey: string) {
+  const current = loginFailures.get(emailKey) || { count: 0, lockUntil: 0 };
+  const count = current.count + 1;
+  const lockUntil = count >= 5 ? Date.now() + 15 * 60 * 1000 : 0; // 15-minute lock after 5 failures
+  loginFailures.set(emailKey, { count, lockUntil });
+}
+
+async function sleepDelay(emailKey: string) {
+  const current = loginFailures.get(emailKey);
+  const count = current ? current.count : 1;
+  // Progressive timing attack mitigation delay: 1.5s + 0.5s per failed attempt (up to 5s max)
+  const delay = 1500 + Math.min(count * 500, 3500);
+  await new Promise(resolve => setTimeout(resolve, delay));
+}
+
 // ─────────────────────────────────────────────────────────────────────
 export const authOptions: NextAuthOptions = {
-  // JWT strategy — no database sessions table needed
-  session: { strategy: "jwt" },
+  // ── Robust Persistent Sessions ──
+  session: { 
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days session persistence
+    updateAge: 24 * 60 * 60, // 24 hours update interval
+  },
 
   secret: process.env.NEXTAUTH_SECRET ?? "dev-secret-change-in-production",
+
+  // ── CSRF & XSS Protection Cookie Configurations ──
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
 
   pages: {
     signIn: "/auth/login",
@@ -62,15 +97,38 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
+        const emailKey = credentials.email.toLowerCase().trim();
+        const now = Date.now();
+
+        // 🛡️ Cyber Defense: Check rate limiter lockout
+        const failureRecord = loginFailures.get(emailKey);
+        if (failureRecord && failureRecord.count >= 5 && failureRecord.lockUntil > now) {
+          const remainingTime = Math.ceil((failureRecord.lockUntil - now) / 1000);
+          console.warn(`[BRUTE-FORCE BLOCKED] Login attempt on locked email: ${emailKey}. Locked for ${remainingTime}s.`);
+          throw new Error(`Too many failed login attempts. Locked out for ${remainingTime} seconds.`);
+        }
+
         try {
           const user = await prisma.user.findUnique({
-            where: { email: credentials.email.toLowerCase().trim() },
+            where: { email: emailKey },
           });
 
-          if (!user || !user.passwordHash) return null;
+          if (!user || !user.passwordHash) {
+            // Track generic authentication failure to mitigate account enumeration
+            trackFailedLogin(emailKey);
+            await sleepDelay(emailKey);
+            return null;
+          }
 
           const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-          if (!valid) return null;
+          if (!valid) {
+            trackFailedLogin(emailKey);
+            await sleepDelay(emailKey);
+            return null;
+          }
+
+          // Successful authentication - clear lockout tracking
+          loginFailures.delete(emailKey);
 
           return {
             id:       user.id,
@@ -82,7 +140,6 @@ export const authOptions: NextAuthOptions = {
           };
         } catch (err) {
           console.error("[AUTH ERROR]", err);
-          // DB not yet connected during initial setup
           return null;
         }
       },

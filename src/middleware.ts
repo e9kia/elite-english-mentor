@@ -19,9 +19,29 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // 3. Cyber Security Hardening: Secure all API routes under /api (excluding public /api/auth paths)
+  if (req.nextUrl.pathname.startsWith("/api")) {
+    if (!req.nextUrl.pathname.startsWith("/api/auth")) {
+      if (!token) {
+        return new NextResponse(
+          JSON.stringify({ error: "Access Denied: Session Unauthorized" }),
+          { status: 401, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/admin", "/study/:path*", "/study", "/compete/:path*", "/compete"],
+  matcher: [
+    "/admin/:path*",
+    "/admin",
+    "/study/:path*",
+    "/study",
+    "/compete/:path*",
+    "/compete",
+    "/api/:path*"
+  ],
 };
