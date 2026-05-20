@@ -69,19 +69,6 @@ export const authOptions: NextAuthOptions = {
 
   secret: process.env.NEXTAUTH_SECRET ?? "dev-secret-change-in-production",
 
-  // ── CSRF & XSS Protection Cookie Configurations ──
-  cookies: {
-    sessionToken: {
-      name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-  },
-
   pages: {
     signIn: "/auth/login",
     error:  "/auth/error",
@@ -161,5 +148,18 @@ export const authOptions: NextAuthOptions = {
       session.user.username = token.username;
       return session;
     },
+  },
+
+  // ── production authentication logger to diagnose silent errors ──
+  logger: {
+    error(code, metadata) {
+      console.error('🔥 NEXTAUTH_PRODUCTION_ERROR:', code, metadata);
+    },
+    warn(code) {
+      console.warn('⚠️ NEXTAUTH_PRODUCTION_WARN:', code);
+    },
+    debug(code, metadata) {
+      console.log('🐞 NEXTAUTH_PRODUCTION_DEBUG:', code, metadata);
+    }
   },
 };
