@@ -8,9 +8,14 @@ export async function GET() {
     timestamp: new Date().toISOString(),
     databaseUrlStatus: {
       hasUrl: !!process.env.DATABASE_URL,
-      // Redact sensitive details, only show host for verification
       redactedUrl: process.env.DATABASE_URL 
         ? process.env.DATABASE_URL.replace(/:[^@]+@/, ":****@").split("?")[0] 
+        : null,
+    },
+    directUrlStatus: {
+      hasUrl: !!process.env.DIRECT_URL,
+      redactedUrl: process.env.DIRECT_URL 
+        ? process.env.DIRECT_URL.replace(/:[^@]+@/, ":****@").split("?")[0] 
         : null,
     },
     nextAuthUrl: process.env.NEXTAUTH_URL || "NOT_SET",
@@ -22,6 +27,13 @@ export async function GET() {
     const usersCount = await prisma.user.count();
     diagnosticInfo.databaseConnection = "SUCCESSFUL";
     diagnosticInfo.totalUsersInDatabase = usersCount;
+
+    // Fetch total units, words, stories to verify database alignment
+    diagnosticInfo.seededData = {
+      units: await prisma.unit.count(),
+      words: await prisma.word.count(),
+      stories: await prisma.story.count(),
+    };
 
     // 2. Query target user
     const targetEmail = "gattam035@gmail.com";
@@ -36,7 +48,7 @@ export async function GET() {
         username: user.username,
         role: user.role,
         hasPasswordHash: !!user.passwordHash,
-        passwordHashStartsWith: user.passwordHash ? user.passwordHash.substring(0, 8) : null,
+        passwordHashStartsWith: user.passwordHash ? user.passwordHash.substring(0, 10) : null,
       };
 
       // Test verify password matching inside the Vercel context

@@ -67,7 +67,7 @@ export const authOptions: NextAuthOptions = {
     updateAge: 24 * 60 * 60, // 24 hours update interval
   },
 
-  secret: process.env.NEXTAUTH_SECRET ?? "dev-secret-change-in-production",
+  secret: process.env.NEXTAUTH_SECRET || "YOUR_SOLID_PRESTIGE_FALLBACK_SECRET_HERE",
 
   pages: {
     signIn: "/auth/login",
@@ -82,40 +82,64 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) {
+          console.warn("[AUTH] Missing email or password credentials");
+          return null;
+        }
 
-        const emailKey = credentials.email.toLowerCase().trim();
+        const emailInput = credentials.email.toLowerCase().trim();
         const now = Date.now();
 
         // 🛡️ Cyber Defense: Check rate limiter lockout
-        const failureRecord = loginFailures.get(emailKey);
+        const failureRecord = loginFailures.get(emailInput);
         if (failureRecord && failureRecord.count >= 5 && failureRecord.lockUntil > now) {
           const remainingTime = Math.ceil((failureRecord.lockUntil - now) / 1000);
-          console.warn(`[BRUTE-FORCE BLOCKED] Login attempt on locked email: ${emailKey}. Locked for ${remainingTime}s.`);
+          console.warn(`[BRUTE-FORCE BLOCKED] Login attempt on locked credentials: ${emailInput}. Locked for ${remainingTime}s.`);
           throw new Error(`Too many failed login attempts. Locked out for ${remainingTime} seconds.`);
         }
 
         try {
-          const user = await prisma.user.findUnique({
-            where: { email: emailKey },
+          console.log(`[AUTH] Authenticating credentials for emailInput: ${emailInput}`);
+          
+          // 🔎 Step 1: Query by email
+          let user = await prisma.user.findUnique({
+            where: { email: emailInput },
           });
 
-          if (!user || !user.passwordHash) {
-            // Track generic authentication failure to mitigate account enumeration
-            trackFailedLogin(emailKey);
-            await sleepDelay(emailKey);
+          // 🔎 Step 2: Fallback query by username if not found by email (returns null)
+          if (!user) {
+            console.log(`[AUTH] User not found by email. Attempting fallback lookup by username: ${emailInput}`);
+            user = await prisma.user.findUnique({
+              where: { username: emailInput },
+            });
+          }
+
+          if (!user) {
+            console.warn(`[AUTH] No user account matched email or username: ${emailInput}`);
+            trackFailedLogin(emailInput);
+            await sleepDelay(emailInput);
             return null;
           }
 
+          if (!user.passwordHash) {
+            console.warn(`[AUTH] User found but has null passwordHash (OAuth user): ${emailInput}`);
+            trackFailedLogin(emailInput);
+            await sleepDelay(emailInput);
+            return null;
+          }
+
+          console.log(`[AUTH] User found. Verifying password hash...`);
           const valid = await bcrypt.compare(credentials.password, user.passwordHash);
           if (!valid) {
-            trackFailedLogin(emailKey);
-            await sleepDelay(emailKey);
+            console.warn(`[AUTH] Password comparison failed for user: ${emailInput}`);
+            trackFailedLogin(emailInput);
+            await sleepDelay(emailInput);
             return null;
           }
 
           // Successful authentication - clear lockout tracking
-          loginFailures.delete(emailKey);
+          loginFailures.delete(emailInput);
+          console.log(`[AUTH] Authentication successful for user: ${user.username} (${user.role})`);
 
           return {
             id:       user.id,
@@ -125,8 +149,8 @@ export const authOptions: NextAuthOptions = {
             role:     user.role,
             image:    user.avatarUrl ?? null,
           };
-        } catch (err) {
-          console.error("[AUTH ERROR]", err);
+        } catch (err: any) {
+          console.error("🔥 [PRISMA HANDSHAKE ERROR] Database connection failed during authentication:", err.message || err);
           return null;
         }
       },
