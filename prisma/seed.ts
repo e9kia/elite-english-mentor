@@ -1,11 +1,15 @@
 const { PrismaClient } = require('@prisma/client');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { getFallbackUnitContent } = require('./fallbackData');
+const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+let apiQuotasExhausted = false;
 
 // ── Unit titles from "4000 Essential English Words 1 (2nd Edition)" ──
 const UNIT_TITLES = [
@@ -27,6 +31,11 @@ const UNIT_TITLES = [
 ];
 
 async function generateUnitContent(unitNumber) {
+  if (apiQuotasExhausted) {
+    console.log(`  💡 Gemini API quota is marked as exhausted. Bypassing and using Prestige Fallback Data immediately for Unit ${unitNumber}...`);
+    return getFallbackUnitContent(unitNumber);
+  }
+
   const prompt = `
 You are an expert curriculum developer. Generate the exact vocabulary and interactive reading story for Unit ${unitNumber} of the book "4000 Essential English Words 1 (2nd Edition)".
 
@@ -34,7 +43,7 @@ PRESTIGE BILINGUAL CONSTRAINTS — EVERY field must be populated:
 1. Provide exactly 20 words for Unit ${unitNumber}.
 2. For EACH word, you MUST include ALL of these fields:
    - "word" (English), "type" (noun|verb|adjective|adverb|preposition|phrase|other)
-   - "phonetic" (IPA pronunciation e.g. /ɪɡˈzæmpəl/)
+   - "phonetic" (IPA pronunciation as a double-quoted string, e.g. "/ɪɡˈzæmpəl/")
    - "meaningArabic" (primary Arabic translation), "typeArabic" (اسم|فعل|صفة|ظرف|حرف جر|عبارة|أخرى)
    - "definition" (comprehensive English definition, 1-2 sentences)
    - "definitionArabic" (full Arabic translation of the definition)
@@ -93,7 +102,7 @@ Respond with ONLY valid JSON, no markdown:
   }
 }`;
 
-  let retries = 3;
+  let retries = 5;
   while (retries > 0) {
     try {
       const result = await model.generateContent({
@@ -109,10 +118,32 @@ Respond with ONLY valid JSON, no markdown:
       }
       return parsed;
     } catch (err) {
-      console.error(`  ⚠ Unit ${unitNumber} attempt failed: ${err.message}`);
       retries--;
-      if (retries === 0) throw err;
-      await sleep(3000);
+      const isRateLimit = err.message?.includes('429') || err.message?.includes('quota');
+      const waitTime = isRateLimit ? 65000 : 15000;
+      console.error(`  ⚠ Unit ${unitNumber} attempt failed (${retries} left): ${isRateLimit ? '429 Rate Limited' : err.message?.slice(0, 80)}`);
+      
+      if (isRateLimit || err.message?.includes('limit') || err.message?.includes('exhausted')) {
+        console.log(`  🚨 Detected quota exhaustion or rate limit. Setting apiQuotasExhausted = true.`);
+        apiQuotasExhausted = true;
+        console.log(`  💡 Switching to Prestige Fallback Data immediately for Unit ${unitNumber}...`);
+        return getFallbackUnitContent(unitNumber);
+      }
+
+      if (retries === 0) {
+        console.log(`  💡 Gemini API failed completely for Unit ${unitNumber}. Using Prestige Fallback Data...`);
+        try {
+          const fallback = getFallbackUnitContent(unitNumber);
+          if (fallback) {
+            return fallback;
+          }
+        } catch (fallbackErr) {
+          console.error(`  🔴 Prestige Fallback Data also failed: ${fallbackErr.message}`);
+        }
+        throw err;
+      }
+      console.log(`  ⏳ Waiting ${waitTime / 1000}s before retry...`);
+      await sleep(waitTime);
     }
   }
 }
@@ -124,13 +155,18 @@ async function upsertUnit(level, unitNumber, data) {
     create: { levelId: level.id, number: unitNumber, title: data.title }
   });
 
+  const ALLOWED_TYPES = ["noun", "verb", "adjective", "adverb", "preposition", "pronoun", "conjunction", "phrase", "other"];
   let wordCount = 0;
   for (const w of data.words) {
     try {
+      let wordType = w.type ? w.type.toLowerCase().trim() : "other";
+      if (!ALLOWED_TYPES.includes(wordType)) {
+        wordType = "other";
+      }
       await prisma.word.upsert({
         where: { unitId_word: { unitId: unit.id, word: w.word.toLowerCase() } },
         update: {
-          type: w.type, definition: w.definition, definitionArabic: w.definitionArabic || null,
+          type: wordType, definition: w.definition, definitionArabic: w.definitionArabic || null,
           example: w.example, meaningArabic: w.meaningArabic, typeArabic: w.typeArabic,
           sentenceArabic: w.sentenceArabic, sentence2: w.sentence2,
           sentence2Arabic: w.sentence2Arabic, sentence3: w.sentence3,
@@ -142,7 +178,7 @@ async function upsertUnit(level, unitNumber, data) {
           phonetic: w.phonetic || null
         },
         create: {
-          unitId: unit.id, word: w.word.toLowerCase(), type: w.type,
+          unitId: unit.id, word: w.word.toLowerCase(), type: wordType,
           definition: w.definition, definitionArabic: w.definitionArabic || null,
           example: w.example, meaningArabic: w.meaningArabic, typeArabic: w.typeArabic,
           sentenceArabic: w.sentenceArabic, sentence2: w.sentence2,
@@ -178,14 +214,9 @@ async function main() {
   console.log("║  Ali Jitam ❤️ Elite English Mentor              ║");
   console.log("╚══════════════════════════════════════════════════╝\n");
 
-  // 1. Purge
-  console.log("🗑  Purging old data...");
-  await prisma.story.deleteMany({});
-  await prisma.word.deleteMany({});
-  await prisma.unit.deleteMany({});
-  console.log("✓  Database purged.\n");
+  console.log("✓  Active Resumption Protocol (skipping pre-seeded units).\n");
 
-  // 2. Ensure Level 1
+  // Ensure Level 1
   const level = await prisma.level.upsert({
     where: { number: 1 },
     update: {},
@@ -195,10 +226,39 @@ async function main() {
   let totalWords = 0;
   let totalStories = 0;
 
-  // 3. Loop all 30 units
+  // Loop all 30 units
   for (let i = 1; i <= 30; i++) {
     console.log(`═══════════════════════════════════════`);
-    console.log(`🔄 Synthesizing Unit ${i}/30: ${UNIT_TITLES[i - 1]}...`);
+    console.log(`🔄 Checking/Synthesizing Unit ${i}/30: ${UNIT_TITLES[i - 1]}...`);
+
+    // Check if the unit exists and is complete (exactly 20 words and has a story)
+    const existingUnit = await prisma.unit.findFirst({
+      where: {
+        number: i,
+        levelId: level.id
+      },
+      include: {
+        _count: {
+          select: { words: true }
+        },
+        story: true
+      }
+    });
+
+    if (existingUnit && existingUnit._count.words === 20 && existingUnit.story) {
+      console.log(`🟢 Unit ${i} already exists with exactly 20 words and story. Skipping!`);
+      totalWords += existingUnit._count.words;
+      totalStories += 1;
+      continue;
+    }
+
+    if (existingUnit) {
+      console.log(`⚠️ Unit ${i} exists but is incomplete (${existingUnit._count.words} words, story: ${!!existingUnit.story}). Purging and re-seeding...`);
+      // Delete specific story, words, unit
+      await prisma.story.deleteMany({ where: { unitId: existingUnit.id } });
+      await prisma.word.deleteMany({ where: { unitId: existingUnit.id } });
+      await prisma.unit.delete({ where: { id: existingUnit.id } });
+    }
 
     try {
       const data = await generateUnitContent(i);
@@ -211,10 +271,45 @@ async function main() {
       console.log(`   Continuing to next unit...`);
     }
 
-    // Rate-limit armor: 2.5s between units
+    // Rate-limit armor: 25s between units (respect API bounds when not in fallback mode)
     if (i < 30) {
-      await sleep(2500);
+      const cooldown = apiQuotasExhausted ? 100 : 25000;
+      console.log(`  ⏳ Cooling down ${cooldown / 1000}s before next unit...`);
+      await sleep(cooldown);
     }
+  }
+
+  // ── Automatic Admin Restoration Step ──
+  console.log(`\n🔑 Checking/restoring root admin account (Ali Jitam)...`);
+  try {
+    const adminEmail = 'gattam035@gmail.com'.toLowerCase().trim();
+    const adminUsername = 'alijitam';
+    const adminPasswordHash = await bcrypt.hash('AliJitam2026!', 12);
+    
+    const adminUser = await prisma.user.upsert({
+      where: { email: adminEmail },
+      update: {
+        username: adminUsername,
+        passwordHash: adminPasswordHash,
+        role: 'admin'
+      },
+      create: {
+        email: adminEmail,
+        username: adminUsername,
+        passwordHash: adminPasswordHash,
+        role: 'admin'
+      }
+    });
+    
+    await prisma.leaderboardSnapshot.upsert({
+      where: { userId: adminUser.id },
+      create: { userId: adminUser.id, totalXp: 0 },
+      update: {}
+    });
+    
+    console.log(`🟢 Root admin account checked/restored successfully (username: ${adminUser.username})`);
+  } catch (err) {
+    console.error(`🔴 Auto-admin restoration failed: ${err.message}`);
   }
 
   console.log(`\n╔══════════════════════════════════════════════════╗`);
