@@ -2,6 +2,7 @@
 //  prisma/schema.prisma
 //  4,000 Essential English Words — Full Database Schema
 //  Supports: multi-user progress, bulk import, 1v1 & group duels (2–6)
+//  Database connection pooling active on port 6543 (Supavisor transactional)
 // =====================================================================
 
 generator client {
